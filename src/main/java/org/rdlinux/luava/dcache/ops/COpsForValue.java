@@ -6,6 +6,8 @@ import org.rdlinux.luava.dcache.DCacheConstant;
 import org.rdlinux.luava.dcache.utils.Assert;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
@@ -16,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class COpsForValue<V> {
+    private static final Logger log = LoggerFactory.getLogger(COpsForValue.class);
     private DCache<V> dCache;
     private ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1,
             new ThreadPoolExecutor.DiscardOldestPolicy());
@@ -43,6 +46,19 @@ public class COpsForValue<V> {
     }
 
     /**
+     * 计划删除过期key
+     *
+     * @param key    需要删除的key
+     * @param lazyMs 延迟多少毫秒执行
+     */
+    private void scheduleDeleteKey(String key, long lazyMs) {
+        this.executor.schedule(() -> {
+            log.info("定时删除过期key:{}", key);
+            this.caffeineCache.invalidate(key);
+        }, lazyMs, TimeUnit.MILLISECONDS);
+    }
+
+    /**
      * 获取
      */
     @SuppressWarnings("unchecked")
@@ -61,8 +77,7 @@ public class COpsForValue<V> {
                         //定时删除一级缓存
                         Long expire = this.redisTemplate.getExpire(redisKey, TimeUnit.MILLISECONDS);
                         if (expire != null && expire > 0) {
-                            this.executor.schedule(() -> this.caffeineCache.invalidate(key), expire,
-                                    TimeUnit.MILLISECONDS);
+                            this.scheduleDeleteKey(key, expire);
                         }
                     }
                 }
@@ -121,13 +136,15 @@ public class COpsForValue<V> {
                     for (int i = 0; i < ndRdKey.size(); i++) {
                         String key = ndRdKey.get(i);
                         V value = redisVs.get(i);
-                        this.caffeineCache.put(key, value);
-                        ret.put(key, value);
-                        //定时删除一级缓存
-                        Long expire = this.redisTemplate.getExpire(this.dCache.getRedisKey(key), TimeUnit.MILLISECONDS);
-                        if (expire != null && expire > 0) {
-                            this.executor.schedule(() -> this.caffeineCache.invalidate(key), expire,
+                        if (value != null) {
+                            this.caffeineCache.put(key, value);
+                            ret.put(key, value);
+                            //定时删除一级缓存
+                            Long expire = this.redisTemplate.getExpire(this.dCache.getRedisKey(key),
                                     TimeUnit.MILLISECONDS);
+                            if (expire != null && expire > 0) {
+                                this.scheduleDeleteKey(key, expire);
+                            }
                         }
                     }
                 }

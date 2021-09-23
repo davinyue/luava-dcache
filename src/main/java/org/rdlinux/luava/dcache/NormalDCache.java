@@ -54,7 +54,7 @@ public class NormalDCache<V> implements DCache<V> {
     private void initCaffeineCache() {
         Caffeine<Object, Object> cfCBuilder = Caffeine.newBuilder().softValues().initialCapacity(8);
         if (this.timeout != -1) {
-            cfCBuilder.expireAfterWrite(this.timeout, TimeUnit.MINUTES);
+            cfCBuilder.expireAfterWrite(this.timeout, this.unit);
         }
         this.caffeineCache = cfCBuilder.build();
     }
