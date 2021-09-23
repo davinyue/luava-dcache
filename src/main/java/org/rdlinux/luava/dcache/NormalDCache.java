@@ -47,7 +47,7 @@ public class NormalDCache<V> implements DCache<V> {
     }
 
     private void initOps() {
-        this.opsForValue = new COpsForValue<>(this.timeout, this.unit, this.caffeineCache,
+        this.opsForValue = new COpsForValue<>(this.name, this.timeout, this.unit, this.caffeineCache,
                 this.redisTemplate, this.redissonClient, this);
     }
 

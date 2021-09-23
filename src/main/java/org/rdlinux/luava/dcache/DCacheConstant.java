@@ -21,6 +21,11 @@ public class DCacheConstant {
      */
     public static final String Load_From_Redis_Lock_Prefix = Redis_Lock_Prefix + "loadRedis:";
     /**
+     * 从call加载数据的锁前缀
+     */
+    public static final String Load_From_Call_Lock_Prefix = Redis_Lock_Prefix + "loadCall:";
+
+    /**
      * redis主题前缀
      */
     public static final String Redis_Topic_Prefix = Redis_Prefix + "topic:";

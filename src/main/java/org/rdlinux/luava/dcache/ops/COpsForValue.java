@@ -15,6 +15,7 @@ import java.util.*;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class COpsForValue<V> {
@@ -22,6 +23,7 @@ public class COpsForValue<V> {
     private DCache<V> dCache;
     private ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1,
             new ThreadPoolExecutor.DiscardOldestPolicy());
+    private String name;
     /**
      * 过期时间, 单位毫秒
      */
@@ -32,11 +34,12 @@ public class COpsForValue<V> {
     private ValueOperations<String, Object> opsForValue;
 
 
-    public COpsForValue(long timeout, TimeUnit unit,
+    public COpsForValue(String name, long timeout, TimeUnit unit,
                         Cache<String, V> caffeineCache,
                         RedisTemplate<String, Object> redisTemplate,
                         RedissonClient redissonClient,
                         DCache<V> dCache) {
+        this.name = name;
         this.timeoutMs = unit.toMillis(timeout);
         this.caffeineCache = caffeineCache;
         this.redisTemplate = redisTemplate;
@@ -59,6 +62,20 @@ public class COpsForValue<V> {
     }
 
     /**
+     * 获取从redis加载key的锁
+     */
+    private RLock getLoadFromRedisLock(String key) {
+        return this.redissonClient.getLock(DCacheConstant.Load_From_Redis_Lock_Prefix + this.name + ":" + key);
+    }
+
+    /**
+     * 获取从redis加载key的锁
+     */
+    private RLock getLoadFromCallLock(String key) {
+        return this.redissonClient.getLock(DCacheConstant.Load_From_Call_Lock_Prefix + this.name + ":" + key);
+    }
+
+    /**
      * 获取
      */
     @SuppressWarnings("unchecked")
@@ -66,7 +83,7 @@ public class COpsForValue<V> {
         V value = this.caffeineCache.getIfPresent(key);
         if (value == null) {
             String redisKey = this.dCache.getRedisKey(key);
-            RLock lock = this.redissonClient.getLock(DCacheConstant.Load_From_Redis_Lock_Prefix + redisKey);
+            RLock lock = this.getLoadFromRedisLock(key);
             try {
                 lock.lock();
                 value = this.caffeineCache.getIfPresent(key);
@@ -91,6 +108,36 @@ public class COpsForValue<V> {
     }
 
     /**
+     * 获取
+     *
+     * @param key  key值
+     * @param call 当缓存中没有数据中调用该对象获取缓存值, 并将返回的额值存入缓存中
+     */
+    @SuppressWarnings("unchecked")
+    public V get(String key, Function<String, V> call) {
+        V value = this.get(key);
+        if (value == null) {
+            RLock lock = this.getLoadFromCallLock(key);
+            try {
+                lock.lock();
+                //从redis重新加载一次
+                value = (V) this.opsForValue.get(this.dCache.getRedisKey(key));
+                if (value == null) {
+                    value = call.apply(key);
+                    if (value != null) {
+                        this.set(key, value);
+                    }
+                }
+            } finally {
+                if (lock.isHeldByCurrentThread()) {
+                    lock.unlock();
+                }
+            }
+        }
+        return value;
+    }
+
+    /**
      * 批量获取
      */
     @SuppressWarnings("unchecked")
@@ -99,7 +146,7 @@ public class COpsForValue<V> {
         List<String> keyL = keys.stream().filter(Objects::nonNull).distinct().collect(Collectors.toList());
         Assert.notEmpty(keyL, "valid key can not be empty");
         List<String> ndRdKey = new LinkedList<>();
-        Map<String, V> ret = new HashMap<>((int) (keyL.size() / 0.75) + 1);
+        Map<String, V> ret = new HashMap<>((int) (keyL.size() / 0.75f) + 1);
         //将key从一级缓存取出, 并将一级缓存没有的key放到ndRdKey
         keyL.forEach(key -> {
             V value = this.caffeineCache.getIfPresent(key);
@@ -116,7 +163,7 @@ public class COpsForValue<V> {
             List<RLock> locks = new LinkedList<>();
             try {
                 lockKey.forEach(key -> {
-                    RLock lock = this.redissonClient.getLock(DCacheConstant.Load_From_Redis_Lock_Prefix + key);
+                    RLock lock = this.getLoadFromRedisLock(key);
                     lock.lock();
                     locks.add(lock);
                 });
@@ -178,7 +225,7 @@ public class COpsForValue<V> {
     public void multiSet(Map<String, V> map) {
         Assert.notEmpty(map, "map can not be empty");
         this.caffeineCache.putAll(map);
-        Map<String, V> redisMap = new HashMap<>((int) (map.size() / 0.75) + 1);
+        Map<String, V> redisMap = new HashMap<>((int) (map.size() / 0.75f) + 1);
         map.forEach((k, v) -> redisMap.put(this.dCache.getRedisKey(k), v));
         this.opsForValue.multiSet(redisMap);
         redisMap.forEach((k, v) -> this.redisTemplate.expire(k, this.timeoutMs
