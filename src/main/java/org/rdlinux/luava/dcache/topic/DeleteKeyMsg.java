@@ -3,15 +3,18 @@ package org.rdlinux.luava.dcache.topic;
 import java.io.Serializable;
 import java.util.Set;
 
-public class OpsValueDeleteMsg implements Serializable {
+/**
+ * 删除key事件信息
+ */
+public class DeleteKeyMsg implements Serializable {
     private static final long serialVersionUID = -4615901717947105870L;
     private Set<String> keys;
 
-    public OpsValueDeleteMsg(Set<String> keys) {
+    public DeleteKeyMsg(Set<String> keys) {
         this.keys = keys;
     }
 
-    public OpsValueDeleteMsg() {
+    public DeleteKeyMsg() {
     }
 
     public Set<String> getKeys() {

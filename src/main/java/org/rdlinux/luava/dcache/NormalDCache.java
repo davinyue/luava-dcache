@@ -3,7 +3,7 @@ package org.rdlinux.luava.dcache;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.rdlinux.luava.dcache.ops.COpsForValue;
-import org.rdlinux.luava.dcache.topic.OpsValueDeleteMsg;
+import org.rdlinux.luava.dcache.topic.DeleteKeyMsg;
 import org.rdlinux.luava.dcache.utils.Assert;
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
@@ -62,12 +62,10 @@ public class NormalDCache<V> implements DCache<V> {
     private void initTopic() {
         this.topic = this.redissonClient.getTopic(DCacheConstant.Redis_Topic_Prefix + this.name,
                 new JsonJacksonCodec());
-        this.topic.addListener(OpsValueDeleteMsg.class, (channel, msg) -> {
+        this.topic.addListener(DeleteKeyMsg.class, (channel, msg) -> {
             Set<String> keys = msg.getKeys();
             log.info("dCache一级缓存同步删除keys:{}", keys);
-            keys.forEach(key -> {
-                this.caffeineCache.invalidate(key);
-            });
+            keys.forEach(key -> this.caffeineCache.invalidate(key));
         });
     }
 
@@ -88,7 +86,7 @@ public class NormalDCache<V> implements DCache<V> {
         //从redis删除key
         this.redisTemplate.delete(this.getRedisKey(key));
         //推送删除key事件
-        this.topic.publish(new OpsValueDeleteMsg(Collections.singleton(key)));
+        this.topic.publish(new DeleteKeyMsg(Collections.singleton(key)));
     }
 
     @Override
@@ -99,7 +97,7 @@ public class NormalDCache<V> implements DCache<V> {
         //从redis删除key
         this.redisTemplate.delete(redisKeys);
         //推送删除key事件
-        this.topic.publish(new OpsValueDeleteMsg(new HashSet<>(keys)));
+        this.topic.publish(new DeleteKeyMsg(new HashSet<>(keys)));
     }
 
     @Override
