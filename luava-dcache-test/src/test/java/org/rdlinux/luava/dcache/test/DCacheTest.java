@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.junit.Test;
 import org.rdlinux.luava.dcache.core.dcache.DCache;
@@ -30,6 +31,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+@Slf4j
 public class DCacheTest {
     private static RedisTemplate<String, Object> redisTemplate;
     private static RedissonClient redissonClient;
@@ -100,10 +102,10 @@ public class DCacheTest {
                     e.printStackTrace();
                 }
                 String zhangsan = opv.get("zhangsan", key -> {
-                    System.out.println("执行回调获取" + key);
+                    log.info("执行回调获取" + key);
                     return "李四";
                 });
-                System.out.println(zhangsan);
+                log.info(zhangsan);
             }).start();
         }
         new CountDownLatch(1).await();
@@ -123,10 +125,10 @@ public class DCacheTest {
                     e.printStackTrace();
                 }
                 Map<String, String> ret = opv.multiGet(Arrays.asList("a", "b", "c"), keys -> {
-                    System.out.println("执行回调获取" + keys.toString());
+                    log.info("执行回调获取" + keys.toString());
                     return keys.stream().collect(Collectors.toMap(e -> e, e -> "1"));
                 });
-                System.out.println(ret);
+                log.info(ret.toString());
             }).start();
         }
         new CountDownLatch(1).await();

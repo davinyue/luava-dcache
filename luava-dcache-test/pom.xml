@@ -8,8 +8,18 @@
         <version>0.0.1.RS</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
-
     <artifactId>luava-dcache-test</artifactId>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <maven.compiler.encoding>UTF-8</maven.compiler.encoding>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+        <maven.compiler.compilerVersion>1.8</maven.compiler.compilerVersion>
+        <log4j2.vsersion>2.11.0</log4j2.vsersion>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>junit</groupId>
@@ -35,28 +45,35 @@
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-api</artifactId>
-            <version>2.11.0</version>
+            <version>${log4j2.vsersion}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
-            <version>2.11.0</version>
+            <version>${log4j2.vsersion}</version>
         </dependency>
-        <dependency> <!-- 桥接：告诉Slf4j使用Log4j2 -->
+        <!-- 桥接：告诉Slf4j使用Log4j2 -->
+        <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-slf4j-impl</artifactId>
-            <version>2.11.0</version>
+            <version>${log4j2.vsersion}</version>
         </dependency>
-        <dependency><!-- 桥接：告诉commons logging使用Log4j2 -->
+        <!-- 桥接：告诉commons logging使用Log4j2 -->
+        <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-jcl</artifactId>
-            <version>2.11.0</version>
+            <version>${log4j2.vsersion}</version>
         </dependency>
         <!-- log4j2异步日志支持 -->
         <dependency>
             <groupId>com.lmax</groupId>
             <artifactId>disruptor</artifactId>
             <version>3.4.2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>1.18.4</version>
         </dependency>
     </dependencies>
     <build>
