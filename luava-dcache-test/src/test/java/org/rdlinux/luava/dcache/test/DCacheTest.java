@@ -27,6 +27,7 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -134,5 +135,48 @@ public class DCacheTest {
             }).start();
         }
         new CountDownLatch(1).await();
+    }
+
+    /**
+     * 单线程设置测试
+     */
+    @Test
+    public void singleThreadSetTest() {
+        DCache<String> cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
+        COpsForValue<String> opv = cache.opsForValue();
+        long start = System.currentTimeMillis();
+        int total = 10000;
+        for (int i = 0; i < total; i++) {
+            String key = UUID.randomUUID().toString().replaceAll("-", "").substring(8, 24);
+            opv.set(key, key);
+        }
+        long end = System.currentTimeMillis();
+        log.info("设置{}条数据,单线程耗时:{}毫秒", total, end - start);
+    }
+
+    /**
+     * 多线程设置测试
+     */
+    @Test
+    public void multiThreadSetTest() throws Exception {
+        DCache<String> cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
+        COpsForValue<String> opv = cache.opsForValue();
+        int total = 10000;
+        int threadN = 5;
+        int part = total / threadN;
+        CountDownLatch latch = new CountDownLatch(threadN);
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < threadN; i++) {
+            new Thread(() -> {
+                for (int h = 0; h < part; h++) {
+                    String key = UUID.randomUUID().toString().replaceAll("-", "").substring(8, 24);
+                    opv.set(key, key);
+                }
+                latch.countDown();
+            }).start();
+        }
+        latch.await();
+        long end = System.currentTimeMillis();
+        log.info("设置{}条数据,多线程耗时:{}毫秒", total, end - start);
     }
 }
