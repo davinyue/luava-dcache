@@ -185,6 +185,9 @@ public class COpsForValue<V> {
                         ret.put(key, value);
                     }
                 });
+                if (ndRdKey.isEmpty()) {
+                    return ret;
+                }
                 log.debug("二级缓存查询, keys:{}", ndRdKey);
                 List<V> redisVs = (List<V>) this.opsForValue.multiGet(ndRdKey.stream().map(
                         e -> this.dCache.getRedisKey(e)).collect(Collectors.toList()));
@@ -230,6 +233,9 @@ public class COpsForValue<V> {
             if (ret.get(key) == null) {
                 ndRdKey.add(key);
             }
+        }
+        if (ndRdKey.isEmpty()) {
+            return ret;
         }
         ndRdKey = ndRdKey.stream().distinct().sorted().collect(Collectors.toList());
         List<RLock> locks = new LinkedList<>();

@@ -92,8 +92,9 @@ public class DCacheTest {
     public void getCallTest() throws InterruptedException {
         DCache<String> cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
         COpsForValue<String> opv = cache.opsForValue();
-        CountDownLatch latch = new CountDownLatch(10);
-        for (int i = 0; i < 10; i++) {
+        int tn = 20;
+        CountDownLatch latch = new CountDownLatch(tn);
+        for (int i = 0; i < tn; i++) {
             new Thread(() -> {
                 latch.countDown();
                 try {
@@ -105,7 +106,7 @@ public class DCacheTest {
                     log.info("执行回调获取" + key);
                     return "李四";
                 });
-                log.info(zhangsan);
+                log.info("缓存结果:{}", zhangsan);
             }).start();
         }
         new CountDownLatch(1).await();
@@ -115,8 +116,9 @@ public class DCacheTest {
     public void multiGetCallTest() throws InterruptedException {
         DCache<String> cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
         COpsForValue<String> opv = cache.opsForValue();
-        CountDownLatch latch = new CountDownLatch(10);
-        for (int i = 0; i < 10; i++) {
+        int tn = 20;
+        CountDownLatch latch = new CountDownLatch(tn);
+        for (int i = 0; i < tn; i++) {
             new Thread(() -> {
                 latch.countDown();
                 try {
@@ -128,7 +130,7 @@ public class DCacheTest {
                     log.info("执行回调获取" + keys.toString());
                     return keys.stream().collect(Collectors.toMap(e -> e, e -> "1"));
                 });
-                log.info(ret.toString());
+                log.info("缓存结果:{}", ret.toString());
             }).start();
         }
         new CountDownLatch(1).await();
