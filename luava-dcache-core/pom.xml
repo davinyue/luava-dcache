@@ -2,16 +2,32 @@
 <project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xmlns="http://maven.apache.org/POM/4.0.0"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>luava-dcache</artifactId>
+        <groupId>org.rdlinux</groupId>
+        <version>0.0.1.RS</version>
+    </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.rdlinux</groupId>
-    <artifactId>luava-dcache</artifactId>
-    <packaging>pom</packaging>
-    <version>0.0.1.RS</version>
-    <modules>
-        <module>luava-dcache-core</module>
-        <module>luava-dcache-test</module>
-    </modules>
+    <artifactId>luava-dcache-core</artifactId>
+    <dependencies>
+        <!-- jdk8应该使用3.0以下版本 -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+            <version>2.9.2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson</artifactId>
+            <version>3.16.2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.data</groupId>
+            <artifactId>spring-data-redis</artifactId>
+            <version>2.5.4</version>
+        </dependency>
+    </dependencies>
     <build>
         <plugins>
             <!-- 指定编译器版本 -->
@@ -22,12 +38,6 @@
                 <configuration>
                     <fork>true</fork>
                 </configuration>
-            </plugin>
-            <!-- lombok编译插件 -->
-            <plugin>
-                <groupId>org.projectlombok</groupId>
-                <artifactId>lombok-maven-plugin</artifactId>
-                <version>1.18.4.0</version>
             </plugin>
             <!--打包源码 -->
             <plugin>

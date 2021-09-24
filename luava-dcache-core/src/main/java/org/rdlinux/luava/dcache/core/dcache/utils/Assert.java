@@ -1,4 +1,4 @@
-package org.rdlinux.luava.dcache.utils;
+package org.rdlinux.luava.dcache.core.dcache.utils;
 
 import java.util.Collection;
 import java.util.Map;

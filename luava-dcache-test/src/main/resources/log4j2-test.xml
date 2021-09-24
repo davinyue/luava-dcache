@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE xml>
+<!-- 本地开发环境日志配置,为啥不用log4j2-dev.xml, 因为log4j2的文件加载顺序导致在进行测试用例测试时,会加载log4j2-test.xml文件 -->
+<!-- status="OFF"，可以去掉，它的含义为是否记录log4j2本身的event信息，默认是OFF -->
+<Configuration status="WARN"
+               packages="com.tengyun.slf4j.sleuth.log4j2.converter">
+    <Properties>
+        <!-- 输出日志的格式%highlight{}高亮，%d{HH:mm:ss.SSS}表示输出到毫秒的时间 ;%t输出当前线程名称 ;%-5level输出日志级别，-5表示左对齐并且固定输出5个字符，如果不足在右边补空格;
+            %logger{36}和%class{3}是输出类型括号中的数字代表包的层级，一次从最深一层往上； %msg日志文本； %n换行；其他常用的占位符有：
+            %F 输出所在的类文件名，如Log4j2Test.java；%L输出行号; %M输出所在方法名; %l输出语句所在的行数, 包括类名、方法名、文件名、行数 -->
+        <property name="log_pattern">
+            %-5level %d{yyyy-MM-dd HH:mm:ss:SSS} [%X{X-B3-TraceId}] [%t] %l - %msg%n
+        </property>
+        <!-- 接受的日志级别 :trace：追踪，就是程序推进一下，可以写个trace输出; debug：调试，一般作为最低级别，trace基本不用;
+            info：输出重要的信息，使用较多; warn：警告，有些信息不是错误信息，但也要给程序员一些提示; error：错误信息,用的也很多; fatal：致命错误,级别较高，这种级别不用调试了，重写吧…… -->
+        <property name="log_level">INFO</property>
+    </Properties>
+    <Appenders>
+        <!-- 输出控制台的配置 -->
+        <Console name="Console" target="SYSTEM_OUT">
+            <!-- 控制台只输出level及以上级别的信息（onMatch），其他的直接拒绝（onMismatch） -->
+            <ThresholdFilter level="DEBUG" onMatch="ACCEPT"
+                             onMismatch="DENY"/>
+            <!-- 输出日志的格式 -->
+            <PatternLayout pattern="${log_pattern}" alwaysWriteExceptions="true"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <!-- additivity="false"表示在该logger中输出的日志不会再延伸到父层logger。
+        这里如果改为true，则会延伸到Root Logger，遵循Root Logger的配置也输出一次, includeLocation="true"表示异步日志时,需要输出行号 -->
+        <AsyncLogger name="org.rdlinux" level="debug" additivity="false"
+                     includeLocation="true">
+            <AppenderRef ref="Console"/>
+        </AsyncLogger>
+        <asyncRoot level="${log_level}" includeLocation="true">
+            <AppenderRef ref="Console"/>
+        </asyncRoot>
+    </Loggers>
+</Configuration>

@@ -1,4 +1,4 @@
-package org.rdlinux.luava.dcache;
+package org.rdlinux.luava.dcache.core.dcache;
 
 /**
  * 常量

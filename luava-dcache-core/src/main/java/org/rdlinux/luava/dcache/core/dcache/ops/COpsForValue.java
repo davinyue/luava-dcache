@@ -1,9 +1,9 @@
-package org.rdlinux.luava.dcache.ops;
+package org.rdlinux.luava.dcache.core.dcache.ops;
 
 import com.github.benmanes.caffeine.cache.Cache;
-import org.rdlinux.luava.dcache.DCache;
-import org.rdlinux.luava.dcache.DCacheConstant;
-import org.rdlinux.luava.dcache.utils.Assert;
+import org.rdlinux.luava.dcache.core.dcache.DCache;
+import org.rdlinux.luava.dcache.core.dcache.DCacheConstant;
+import org.rdlinux.luava.dcache.core.dcache.utils.Assert;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
@@ -56,7 +56,7 @@ public class COpsForValue<V> {
      */
     private void scheduleDeleteKey(String key, long lazyMs) {
         this.executor.schedule(() -> {
-            log.info("定时删除过期key:{}", key);
+            log.debug("定时删除过期key:{}", key);
             this.caffeineCache.invalidate(key);
         }, lazyMs, TimeUnit.MILLISECONDS);
     }
@@ -80,20 +80,24 @@ public class COpsForValue<V> {
      */
     @SuppressWarnings("unchecked")
     public V get(String key) {
+        log.debug("一级缓存查询, key:{}", key);
         V value = this.caffeineCache.getIfPresent(key);
         if (value == null) {
             String redisKey = this.dCache.getRedisKey(key);
             RLock lock = this.getLoadFromRedisLock(key);
             try {
                 lock.lock();
+                log.debug("一级缓存重查询, key:{}", key);
                 value = this.caffeineCache.getIfPresent(key);
                 if (value == null) {
+                    log.debug("二级缓存查询, key:{}", key);
                     value = (V) this.opsForValue.get(redisKey);
                     if (value != null) {
                         this.caffeineCache.put(key, value);
                         //定时删除一级缓存
                         Long expire = this.redisTemplate.getExpire(redisKey, TimeUnit.MILLISECONDS);
                         if (expire != null && expire > 0) {
+                            log.debug("二级缓存数据存在过期时间, 需要定时删除一级缓存, key:{}", key);
                             this.scheduleDeleteKey(key, expire);
                         }
                     }
@@ -121,8 +125,10 @@ public class COpsForValue<V> {
             try {
                 lock.lock();
                 //从redis重新加载一次
+                log.debug("二级缓存重查询, key:{}", key);
                 value = (V) this.opsForValue.get(this.dCache.getRedisKey(key));
                 if (value == null) {
+                    log.debug("调用回调查询, key:{}", key);
                     value = call.apply(key);
                     if (value != null) {
                         this.set(key, value);
@@ -148,6 +154,7 @@ public class COpsForValue<V> {
         List<String> ndRdKey = new LinkedList<>();
         Map<String, V> ret = new HashMap<>((int) (keyL.size() / 0.75f) + 1);
         //将key从一级缓存取出, 并将一级缓存没有的key放到ndRdKey
+        log.debug("一级缓存查询, keys:{}", keyL);
         keyL.forEach(key -> {
             V value = this.caffeineCache.getIfPresent(key);
             if (value == null) {
@@ -169,6 +176,7 @@ public class COpsForValue<V> {
                 });
                 //将需要从redis加载的key清空, 然后从新从一级缓存获取一次, 并将获取不到的key重新放入ndRdKey
                 ndRdKey.clear();
+                log.debug("一级缓存重查询, keys:{}", lockKey);
                 lockKey.forEach(key -> {
                     V value = this.caffeineCache.getIfPresent(key);
                     if (value == null) {
@@ -177,6 +185,7 @@ public class COpsForValue<V> {
                         ret.put(key, value);
                     }
                 });
+                log.debug("二级缓存查询, keys:{}", ndRdKey);
                 List<V> redisVs = (List<V>) this.opsForValue.multiGet(ndRdKey.stream().map(
                         e -> this.dCache.getRedisKey(e)).collect(Collectors.toList()));
                 if (redisVs != null) {
@@ -190,6 +199,7 @@ public class COpsForValue<V> {
                             Long expire = this.redisTemplate.getExpire(this.dCache.getRedisKey(key),
                                     TimeUnit.MILLISECONDS);
                             if (expire != null && expire > 0) {
+                                log.debug("二级缓存数据存在过期时间, 需要定时删除一级缓存, key:{}", key);
                                 this.scheduleDeleteKey(key, expire);
                             }
                         }
@@ -202,6 +212,66 @@ public class COpsForValue<V> {
                     }
                 });
             }
+        }
+        return ret;
+    }
+
+    /**
+     * 批量获取
+     *
+     * @param keys 键值
+     * @param call 回调, 没有的键值将会回调该函数获取
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, V> multiGet(Collection<String> keys, Function<List<String>, Map<String, V>> call) {
+        Map<String, V> ret = this.multiGet(keys);
+        List<String> ndRdKey = new LinkedList<>();
+        for (String key : keys) {
+            if (ret.get(key) == null) {
+                ndRdKey.add(key);
+            }
+        }
+        ndRdKey = ndRdKey.stream().distinct().sorted().collect(Collectors.toList());
+        List<RLock> locks = new LinkedList<>();
+        try {
+            for (String key : ndRdKey) {
+                RLock lock = this.getLoadFromCallLock(key);
+                lock.lock();
+                locks.add(lock);
+            }
+            //从二级缓存重新获取
+            List<String> redisKs = ndRdKey.stream().map(e -> this.dCache.getRedisKey(e))
+                    .collect(Collectors.toList());
+            log.debug("二级缓存重查询, keys:{}", redisKs);
+            List<V> rdData = (List<V>) this.opsForValue.multiGet(redisKs);
+            //再次过滤出二级缓存中没有的key
+            List<String> callKeys = new LinkedList<>();
+            if (rdData == null) {
+                callKeys.addAll(ndRdKey);
+            } else {
+                for (int i = 0; i < ndRdKey.size(); i++) {
+                    String key = ndRdKey.get(i);
+                    V value = rdData.get(i);
+                    if (value == null) {
+                        callKeys.add(key);
+                    } else {
+                        ret.put(key, value);
+                    }
+                }
+            }
+            //调用call获取数据
+            if (!callKeys.isEmpty()) {
+                log.debug("调用回调查询, keys:{}", callKeys);
+                Map<String, V> callRet = call.apply(callKeys);
+                ret.putAll(callRet);
+                this.multiSet(callRet);
+            }
+        } finally {
+            locks.forEach(lock -> {
+                if (lock.isHeldByCurrentThread()) {
+                    lock.unlock();
+                }
+            });
         }
         return ret;
     }

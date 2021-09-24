@@ -1,6 +1,6 @@
-package org.rdlinux.luava.dcache;
+package org.rdlinux.luava.dcache.core.dcache;
 
-import org.rdlinux.luava.dcache.ops.COpsForValue;
+import org.rdlinux.luava.dcache.core.dcache.ops.COpsForValue;
 
 import java.util.Collection;
 
