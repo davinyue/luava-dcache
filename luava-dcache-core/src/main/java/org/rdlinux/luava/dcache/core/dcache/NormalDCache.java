@@ -64,7 +64,9 @@ public class NormalDCache<V> implements DCache<V> {
                 new JsonJacksonCodec());
         this.topic.addListener(DeleteKeyMsg.class, (channel, msg) -> {
             Set<String> keys = msg.getKeys();
-            log.info("dCache一级缓存同步删除keys:{}", keys);
+            if (log.isDebugEnabled()) {
+                log.info("dCache一级缓存同步删除keys:{}", keys);
+            }
             keys.forEach(key -> this.caffeineCache.invalidate(key));
         });
     }
