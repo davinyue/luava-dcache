@@ -1,11 +1,14 @@
 package org.rdlinux.luava.dcache.core.dcache;
 
+import org.rdlinux.luava.dcache.core.dcache.ops.COpsForHash;
 import org.rdlinux.luava.dcache.core.dcache.ops.COpsForValue;
 
 import java.util.Collection;
 
-public interface DCache<V> {
-    COpsForValue<V> opsForValue();
+public interface DCache {
+    COpsForValue opsForValue();
+
+    COpsForHash opsForHash();
 
     String getRedisKey(String key);
 

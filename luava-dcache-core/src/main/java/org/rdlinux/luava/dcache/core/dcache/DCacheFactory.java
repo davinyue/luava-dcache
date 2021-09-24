@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit;
 
 public class DCacheFactory {
     private static final Object CACHE_CREATE_LOCK = new Object();
-    private final ConcurrentHashMap<String, DCache<?>> caches = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, DCache> caches = new ConcurrentHashMap<>();
     private RedisTemplate<String, Object> redisTemplate;
     private RedissonClient redissonClient;
 
@@ -20,31 +20,30 @@ public class DCacheFactory {
         this.redissonClient = redissonClient;
     }
 
-    public <V> DCache<V> getCache(String name) {
+    public DCache getCache(String name) {
         return this.getCache(name, -1);
     }
 
-    public <V> DCache<V> getCache(String name, long timeout) {
+    public DCache getCache(String name, long timeout) {
         return this.getCache(name, timeout, TimeUnit.SECONDS);
     }
 
-    @SuppressWarnings("unchecked")
-    public <V> DCache<V> getCache(String name, long timeout, TimeUnit unit) {
+    public DCache getCache(String name, long timeout, TimeUnit unit) {
         Assert.notNull(name, "name can not be null");
         Assert.notNull(unit, "unit can not be null");
         if (timeout == 0) {
             timeout = -1;
         }
-        DCache<?> dCache = this.caches.get(name);
+        DCache dCache = this.caches.get(name);
         if (dCache == null) {
             synchronized (CACHE_CREATE_LOCK) {
                 dCache = this.caches.get(name);
                 if (dCache == null) {
-                    dCache = new NormalDCache<>(name, timeout, unit, this.redisTemplate, this.redissonClient);
+                    dCache = new NormalDCache(name, timeout, unit, this.redisTemplate, this.redissonClient);
                     this.caches.put(name, dCache);
                 }
             }
         }
-        return (DCache<V>) dCache;
+        return dCache;
     }
 }

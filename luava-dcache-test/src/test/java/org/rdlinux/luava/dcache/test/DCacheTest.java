@@ -90,8 +90,8 @@ public class DCacheTest {
 
     @Test
     public void getCallTest() throws InterruptedException {
-        DCache<String> cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
-        COpsForValue<String> opv = cache.opsForValue();
+        DCache cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
+        COpsForValue opv = cache.opsForValue();
         int tn = 20;
         CountDownLatch latch = new CountDownLatch(tn);
         for (int i = 0; i < tn; i++) {
@@ -114,8 +114,8 @@ public class DCacheTest {
 
     @Test
     public void multiGetCallTest() throws InterruptedException {
-        DCache<String> cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
-        COpsForValue<String> opv = cache.opsForValue();
+        DCache cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
+        COpsForValue opv = cache.opsForValue();
         int tn = 20;
         CountDownLatch latch = new CountDownLatch(tn);
         for (int i = 0; i < tn; i++) {
@@ -141,8 +141,8 @@ public class DCacheTest {
      */
     @Test
     public void singleThreadSetTest() {
-        DCache<String> cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
-        COpsForValue<String> opv = cache.opsForValue();
+        DCache cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
+        COpsForValue opv = cache.opsForValue();
         long start = System.currentTimeMillis();
         int total = 10000;
         for (int i = 0; i < total; i++) {
@@ -158,8 +158,8 @@ public class DCacheTest {
      */
     @Test
     public void multiThreadSetTest() throws Exception {
-        DCache<String> cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
-        COpsForValue<String> opv = cache.opsForValue();
+        DCache cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
+        COpsForValue opv = cache.opsForValue();
         int total = 10000;
         int threadN = 5;
         int part = total / threadN;
@@ -184,8 +184,8 @@ public class DCacheTest {
      */
     @Test
     public void singleThreadGetTest() {
-        DCache<String> cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
-        COpsForValue<String> opv = cache.opsForValue();
+        DCache cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
+        COpsForValue opv = cache.opsForValue();
         opv.set("a", "1");
         long start = System.currentTimeMillis();
         int total = 10000;
@@ -201,8 +201,8 @@ public class DCacheTest {
      */
     @Test
     public void multiThreadGetTest() throws Exception {
-        DCache<String> cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
-        COpsForValue<String> opv = cache.opsForValue();
+        DCache cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
+        COpsForValue opv = cache.opsForValue();
         opv.set("a", "1");
         int total = 10000;
         int threadN = 5;
@@ -227,8 +227,8 @@ public class DCacheTest {
      */
     @Test
     public void generateKeysTests() throws Exception {
-        DCache<String> cache = dCacheFactory.getCache("order", 1, TimeUnit.DAYS);
-        COpsForValue<String> opv = cache.opsForValue();
+        DCache cache = dCacheFactory.getCache("order", 1, TimeUnit.DAYS);
+        COpsForValue opv = cache.opsForValue();
         long start = System.currentTimeMillis();
         int total = 10000;
         File file = new File("d:/dCacheKeys.txt");
@@ -253,8 +253,8 @@ public class DCacheTest {
      */
     @Test
     public void getKeysFromFileTests() throws Exception {
-        DCache<String> cache = dCacheFactory.getCache("order", 1, TimeUnit.DAYS);
-        COpsForValue<String> opv = cache.opsForValue();
+        DCache cache = dCacheFactory.getCache("order", 1, TimeUnit.DAYS);
+        COpsForValue opv = cache.opsForValue();
         opv.set("a", "1");
         long start = System.currentTimeMillis();
         int total = 200;
@@ -276,8 +276,8 @@ public class DCacheTest {
      */
     @Test
     public void mtGetKeysFromFileTests() throws Exception {
-        DCache<String> cache = dCacheFactory.getCache("order", 1, TimeUnit.DAYS);
-        COpsForValue<String> opv = cache.opsForValue();
+        DCache cache = dCacheFactory.getCache("order", 1, TimeUnit.DAYS);
+        COpsForValue opv = cache.opsForValue();
         opv.set("a", "1");
         long start = System.currentTimeMillis();
         int total = 2000;

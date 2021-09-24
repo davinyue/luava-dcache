@@ -18,9 +18,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class COpsForValue<V> {
+public class COpsForValue {
     private static final Logger log = LoggerFactory.getLogger(COpsForValue.class);
-    private DCache<V> dCache;
+    private DCache dCache;
     private ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1,
             new ThreadPoolExecutor.DiscardOldestPolicy());
     private String name;
@@ -30,15 +30,15 @@ public class COpsForValue<V> {
     private long timeoutMs;
     private RedisTemplate<String, Object> redisTemplate;
     private RedissonClient redissonClient;
-    private Cache<String, V> caffeineCache;
+    private Cache<String, Object> caffeineCache;
     private ValueOperations<String, Object> opsForValue;
 
 
     public COpsForValue(String name, long timeout, TimeUnit unit,
-                        Cache<String, V> caffeineCache,
+                        Cache<String, Object> caffeineCache,
                         RedisTemplate<String, Object> redisTemplate,
                         RedissonClient redissonClient,
-                        DCache<V> dCache) {
+                        DCache dCache) {
         this.name = name;
         this.timeoutMs = unit.toMillis(timeout);
         this.caffeineCache = caffeineCache;
@@ -81,11 +81,11 @@ public class COpsForValue<V> {
      * 获取
      */
     @SuppressWarnings("unchecked")
-    public V get(String key) {
+    public <V> V get(String key) {
         if (log.isDebugEnabled()) {
             log.debug("一级缓存查询, key:{}", key);
         }
-        V value = this.caffeineCache.getIfPresent(key);
+        V value = (V) this.caffeineCache.getIfPresent(key);
         if (value == null) {
             String redisKey = this.dCache.getRedisKey(key);
             RLock lock = this.getLoadFromRedisLock(key);
@@ -94,7 +94,7 @@ public class COpsForValue<V> {
                 if (log.isDebugEnabled()) {
                     log.debug("一级缓存重查询, key:{}", key);
                 }
-                value = this.caffeineCache.getIfPresent(key);
+                value = (V) this.caffeineCache.getIfPresent(key);
                 if (value == null) {
                     if (log.isDebugEnabled()) {
                         log.debug("二级缓存查询, key:{}", key);
@@ -128,7 +128,7 @@ public class COpsForValue<V> {
      * @param call 当缓存中没有数据中调用该对象获取缓存值, 并将返回的额值存入缓存中
      */
     @SuppressWarnings("unchecked")
-    public V get(String key, Function<String, V> call) {
+    public <V> V get(String key, Function<String, V> call) {
         V value = this.get(key);
         if (value == null) {
             RLock lock = this.getLoadFromCallLock(key);
@@ -161,7 +161,7 @@ public class COpsForValue<V> {
      * 批量获取
      */
     @SuppressWarnings("unchecked")
-    public Map<String, V> multiGet(Collection<String> keys) {
+    public <V> Map<String, V> multiGet(Collection<String> keys) {
         Assert.notEmpty(keys, "keys can not be empty");
         List<String> keyL = keys.stream().filter(Objects::nonNull).distinct().collect(Collectors.toList());
         Assert.notEmpty(keyL, "valid key can not be empty");
@@ -172,7 +172,7 @@ public class COpsForValue<V> {
             log.debug("一级缓存查询, keys:{}", keyL);
         }
         keyL.forEach(key -> {
-            V value = this.caffeineCache.getIfPresent(key);
+            V value = (V) this.caffeineCache.getIfPresent(key);
             if (value == null) {
                 ndRdKey.add(key);
             } else {
@@ -196,7 +196,7 @@ public class COpsForValue<V> {
                     log.debug("一级缓存重查询, keys:{}", lockKey);
                 }
                 lockKey.forEach(key -> {
-                    V value = this.caffeineCache.getIfPresent(key);
+                    V value = (V) this.caffeineCache.getIfPresent(key);
                     if (value == null) {
                         ndRdKey.add(key);
                     } else {
@@ -248,7 +248,7 @@ public class COpsForValue<V> {
      * @param call 回调, 没有的键值将会回调该函数获取
      */
     @SuppressWarnings("unchecked")
-    public Map<String, V> multiGet(Collection<String> keys, Function<List<String>, Map<String, V>> call) {
+    public <V> Map<String, V> multiGet(Collection<String> keys, Function<List<String>, Map<String, V>> call) {
         Map<String, V> ret = this.multiGet(keys);
         List<String> ndRdKey = new LinkedList<>();
         for (String key : keys) {
@@ -311,7 +311,7 @@ public class COpsForValue<V> {
     /**
      * 设置
      */
-    public void set(String key, V value) {
+    public <V> void set(String key, V value) {
         this.caffeineCache.put(key, value);
         if (this.timeoutMs > 0) {
             this.opsForValue.set(this.dCache.getRedisKey(key), value, this.timeoutMs
@@ -324,7 +324,7 @@ public class COpsForValue<V> {
     /**
      * 批量设置
      */
-    public void multiSet(Map<String, V> map) {
+    public <V> void multiSet(Map<String, V> map) {
         Assert.notEmpty(map, "map can not be empty");
         this.caffeineCache.putAll(map);
         Map<String, V> redisMap = new HashMap<>((int) (map.size() / 0.75f) + 1);
