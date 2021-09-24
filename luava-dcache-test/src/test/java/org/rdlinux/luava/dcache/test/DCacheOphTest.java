@@ -311,4 +311,13 @@ public class DCacheOphTest {
         reader.close();
         log.info("多线程获取{}条数据,单线程耗时:{}毫秒", total, end - start);
     }
+
+    @Test
+    public void deleteTest() throws Exception {
+        DCache cache = dCacheFactory.getCache("order", 1, TimeUnit.DAYS);
+        COpsForHash oph = cache.opsForHash();
+        oph.delete("woman", "1", "2");
+        oph.delete("woman", Collections.singleton("1"));
+        new CountDownLatch(1).await();
+    }
 }

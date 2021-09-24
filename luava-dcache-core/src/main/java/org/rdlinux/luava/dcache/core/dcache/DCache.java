@@ -13,11 +13,6 @@ public interface DCache {
     String getRedisKey(String key);
 
     /**
-     * 删除key
-     */
-    void delete(String key);
-
-    /**
      * 批量删除key
      */
     void delete(Collection<String> keys);

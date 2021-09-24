@@ -3,16 +3,18 @@ package org.rdlinux.luava.dcache.core.dcache.ops;
 import com.github.benmanes.caffeine.cache.Cache;
 import org.rdlinux.luava.dcache.core.dcache.DCache;
 import org.rdlinux.luava.dcache.core.dcache.DCacheConstant;
+import org.rdlinux.luava.dcache.core.dcache.topic.DeleteHashKeyMsg;
 import org.rdlinux.luava.dcache.core.dcache.utils.Assert;
 import org.redisson.api.RLock;
+import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
+import org.redisson.codec.JsonJacksonCodec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -31,6 +33,7 @@ public class COpsForHash {
     private RedissonClient redissonClient;
     private Cache<String, Object> caffeineCache;
     private HashOperations<String, String, Object> opsForHash;
+    private RTopic topic;
 
 
     public COpsForHash(String name, long timeout, TimeUnit unit,
@@ -47,6 +50,20 @@ public class COpsForHash {
         this.opsForHash = this.redisTemplate.opsForHash();
         this.dCache = dCache;
         this.scheduledExecutor = scheduledExecutor;
+        this.initTopic();
+    }
+
+    private void initTopic() {
+        this.topic = this.redissonClient.getTopic(DCacheConstant.Redis_Topic_Prefix + "dhk:" + this.name,
+                new JsonJacksonCodec());
+        this.topic.addListener(DeleteHashKeyMsg.class, (channel, msg) -> {
+            Map<String, Object> hash = this.getHash(msg.getKey());
+            Set<String> hashKeys = msg.getHashKeys();
+            if (log.isDebugEnabled()) {
+                log.info("dCache一级缓存同步删除hashKeys:{}", hashKeys);
+            }
+            hashKeys.forEach(hash::remove);
+        });
     }
 
     /**
@@ -148,5 +165,27 @@ public class COpsForHash {
         this.opsForHash.put(redisKey, hashKey, value);
         this.redisTemplate.expire(redisKey, this.timeoutMs + new Random().nextInt(1000),
                 TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * 删除keys
+     */
+    public void delete(String key, String... hashKeys) {
+        Assert.notNull(key, "key can not be null");
+        Assert.notNull(hashKeys, "hashKeys can not be empty");
+        //从redis删除key
+        this.opsForHash.delete(this.dCache.getRedisKey(key), hashKeys);
+        //推送删除key事件
+        this.topic.publish(new DeleteHashKeyMsg(key, new HashSet<>(Arrays.asList(hashKeys))));
+    }
+
+    /**
+     * 删除keys
+     */
+    public void delete(String key, Collection<String> hashKeys) {
+        Assert.notEmpty(hashKeys, "hashKeys can not be empty");
+        String[] ahks = new String[hashKeys.size()];
+        hashKeys.toArray(ahks);
+        this.delete(key, ahks);
     }
 }

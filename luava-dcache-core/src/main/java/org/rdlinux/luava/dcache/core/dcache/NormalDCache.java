@@ -71,7 +71,7 @@ public class NormalDCache implements DCache {
     }
 
     private void initTopic() {
-        this.topic = this.redissonClient.getTopic(DCacheConstant.Redis_Topic_Prefix + this.name,
+        this.topic = this.redissonClient.getTopic(DCacheConstant.Redis_Topic_Prefix + "dk:" + this.name,
                 new JsonJacksonCodec());
         this.topic.addListener(DeleteKeyMsg.class, (channel, msg) -> {
             Set<String> keys = msg.getKeys();
@@ -96,15 +96,6 @@ public class NormalDCache implements DCache {
     @Override
     public String getRedisKey(String key) {
         return this.redisKeyPrefix + key;
-    }
-
-    @Override
-    public void delete(String key) {
-        Assert.notNull(key, "key can not be null");
-        //从redis删除key
-        this.redisTemplate.delete(this.getRedisKey(key));
-        //推送删除key事件
-        this.topic.publish(new DeleteKeyMsg(Collections.singleton(key)));
     }
 
     @Override
