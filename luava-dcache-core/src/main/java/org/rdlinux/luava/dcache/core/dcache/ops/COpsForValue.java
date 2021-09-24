@@ -13,7 +13,6 @@ import org.springframework.data.redis.core.ValueOperations;
 
 import java.util.*;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -21,8 +20,7 @@ import java.util.stream.Collectors;
 public class COpsForValue {
     private static final Logger log = LoggerFactory.getLogger(COpsForValue.class);
     private DCache dCache;
-    private ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1,
-            new ThreadPoolExecutor.DiscardOldestPolicy());
+    private ScheduledThreadPoolExecutor scheduledExecutor;
     private String name;
     /**
      * 过期时间, 单位毫秒
@@ -33,12 +31,12 @@ public class COpsForValue {
     private Cache<String, Object> caffeineCache;
     private ValueOperations<String, Object> opsForValue;
 
-
     public COpsForValue(String name, long timeout, TimeUnit unit,
                         Cache<String, Object> caffeineCache,
                         RedisTemplate<String, Object> redisTemplate,
                         RedissonClient redissonClient,
-                        DCache dCache) {
+                        DCache dCache,
+                        ScheduledThreadPoolExecutor scheduledExecutor) {
         this.name = name;
         this.timeoutMs = unit.toMillis(timeout);
         this.caffeineCache = caffeineCache;
@@ -46,6 +44,7 @@ public class COpsForValue {
         this.redissonClient = redissonClient;
         this.opsForValue = this.redisTemplate.opsForValue();
         this.dCache = dCache;
+        this.scheduledExecutor = scheduledExecutor;
     }
 
     /**
@@ -55,7 +54,7 @@ public class COpsForValue {
      * @param lazyMs 延迟多少毫秒执行
      */
     private void scheduleDeleteKey(String key, long lazyMs) {
-        this.executor.schedule(() -> {
+        this.scheduledExecutor.schedule(() -> {
             if (log.isDebugEnabled()) {
                 log.debug("定时删除过期key:{}", key);
             }

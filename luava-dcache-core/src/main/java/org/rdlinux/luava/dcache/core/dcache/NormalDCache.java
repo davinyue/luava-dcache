@@ -14,6 +14,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 
 import java.util.*;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -32,7 +34,8 @@ public class NormalDCache implements DCache {
     private String redisKeyPrefix;
     private COpsForValue opsForValue;
     private COpsForHash opsForHash;
-
+    private ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1,
+            new ThreadPoolExecutor.DiscardOldestPolicy());
 
     protected NormalDCache(String name, long timeout, TimeUnit unit, RedisTemplate<String, Object> redisTemplate,
                            RedissonClient redissonClient) {
@@ -48,11 +51,15 @@ public class NormalDCache implements DCache {
 
     }
 
+    public ScheduledThreadPoolExecutor getExecutor() {
+        return this.executor;
+    }
+
     private void initOps() {
         this.opsForValue = new COpsForValue(this.name, this.timeout, this.unit, this.caffeineCache,
-                this.redisTemplate, this.redissonClient, this);
+                this.redisTemplate, this.redissonClient, this, this.executor);
         this.opsForHash = new COpsForHash(this.name, this.timeout, this.unit, this.caffeineCache,
-                this.redisTemplate, this.redissonClient, this);
+                this.redisTemplate, this.redissonClient, this, this.executor);
     }
 
     private void initCaffeineCache() {

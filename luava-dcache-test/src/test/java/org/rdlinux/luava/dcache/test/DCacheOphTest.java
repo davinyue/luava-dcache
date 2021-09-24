@@ -12,6 +12,7 @@ import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.junit.Test;
 import org.rdlinux.luava.dcache.core.dcache.DCache;
 import org.rdlinux.luava.dcache.core.dcache.DCacheFactory;
+import org.rdlinux.luava.dcache.core.dcache.ops.COpsForHash;
 import org.rdlinux.luava.dcache.core.dcache.ops.COpsForValue;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
@@ -32,7 +33,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
-public class DCacheTest {
+public class DCacheOphTest {
     private static RedisTemplate<String, Object> redisTemplate;
     private static RedissonClient redissonClient;
     private static DCacheFactory dCacheFactory;
@@ -142,12 +143,12 @@ public class DCacheTest {
     @Test
     public void singleThreadSetTest() {
         DCache cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
-        COpsForValue opv = cache.opsForValue();
+        COpsForHash oph = cache.opsForHash();
         long start = System.currentTimeMillis();
-        int total = 10000;
+        int total = 100;
         for (int i = 0; i < total; i++) {
             String key = UUID.randomUUID().toString().replaceAll("-", "").substring(8, 24);
-            opv.set(key, key);
+            oph.set("woman", key, key);
         }
         long end = System.currentTimeMillis();
         log.info("设置{}条数据,单线程耗时:{}毫秒", total, end - start);
@@ -159,8 +160,8 @@ public class DCacheTest {
     @Test
     public void multiThreadSetTest() throws Exception {
         DCache cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
-        COpsForValue opv = cache.opsForValue();
-        int total = 10000;
+        COpsForHash oph = cache.opsForHash();
+        int total = 1000;
         int threadN = 5;
         int part = total / threadN;
         CountDownLatch latch = new CountDownLatch(threadN);
@@ -169,7 +170,7 @@ public class DCacheTest {
             new Thread(() -> {
                 for (int h = 0; h < part; h++) {
                     String key = UUID.randomUUID().toString().replaceAll("-", "").substring(8, 24);
-                    opv.set(key, key);
+                    oph.set("woman", key, key);
                 }
                 latch.countDown();
             }).start();
@@ -185,12 +186,12 @@ public class DCacheTest {
     @Test
     public void singleThreadGetTest() {
         DCache cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
-        COpsForValue opv = cache.opsForValue();
-        opv.set("a", "1");
+        COpsForHash oph = cache.opsForHash();
+        oph.get("woman", "7b4d49e9b9188511");
         long start = System.currentTimeMillis();
         int total = 10000;
         for (int i = 0; i < total; i++) {
-            opv.get("a");
+            oph.get("woman", "7b4d49e9b9188511");
         }
         long end = System.currentTimeMillis();
         log.info("获取{}条数据,单线程耗时:{}毫秒", total, end - start);
