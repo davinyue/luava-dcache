@@ -24,10 +24,9 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
+import java.io.*;
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -178,5 +177,137 @@ public class DCacheTest {
         latch.await();
         long end = System.currentTimeMillis();
         log.info("设置{}条数据,多线程耗时:{}毫秒", total, end - start);
+    }
+
+    /**
+     * 单线程设置测试
+     */
+    @Test
+    public void singleThreadGetTest() {
+        DCache<String> cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
+        COpsForValue<String> opv = cache.opsForValue();
+        opv.set("a", "1");
+        long start = System.currentTimeMillis();
+        int total = 10000;
+        for (int i = 0; i < total; i++) {
+            opv.get("a");
+        }
+        long end = System.currentTimeMillis();
+        log.info("获取{}条数据,单线程耗时:{}毫秒", total, end - start);
+    }
+
+    /**
+     * 多线程设置测试
+     */
+    @Test
+    public void multiThreadGetTest() throws Exception {
+        DCache<String> cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
+        COpsForValue<String> opv = cache.opsForValue();
+        opv.set("a", "1");
+        int total = 10000;
+        int threadN = 5;
+        int part = total / threadN;
+        CountDownLatch latch = new CountDownLatch(threadN);
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < threadN; i++) {
+            new Thread(() -> {
+                for (int h = 0; h < part; h++) {
+                    opv.get("a");
+                }
+                latch.countDown();
+            }).start();
+        }
+        latch.await();
+        long end = System.currentTimeMillis();
+        log.info("获取{}条数据,多线程耗时:{}毫秒", total, end - start);
+    }
+
+    /**
+     * 生成一万个key到缓存, 并将key存储到文件
+     */
+    @Test
+    public void generateKeysTests() throws Exception {
+        DCache<String> cache = dCacheFactory.getCache("order", 1, TimeUnit.DAYS);
+        COpsForValue<String> opv = cache.opsForValue();
+        long start = System.currentTimeMillis();
+        int total = 10000;
+        File file = new File("d:/dCacheKeys.txt");
+        if (!file.exists()) {
+            file.createNewFile();
+        }
+        FileWriter writer = new FileWriter("d:/dCacheKeys.txt");
+        BufferedWriter bufferedWriter = new BufferedWriter(writer);
+        for (int i = 0; i < total; i++) {
+            String key = UUID.randomUUID().toString().replaceAll("-", "").substring(8, 24);
+            opv.set(key, key);
+            bufferedWriter.write(key + "\r\n");
+        }
+        long end = System.currentTimeMillis();
+        bufferedWriter.close();
+        writer.close();
+        log.info("设置{}条数据,单线程耗时:{}毫秒", total, end - start);
+    }
+
+    /**
+     * 单线程从文件读取key
+     */
+    @Test
+    public void getKeysFromFileTests() throws Exception {
+        DCache<String> cache = dCacheFactory.getCache("order", 1, TimeUnit.DAYS);
+        COpsForValue<String> opv = cache.opsForValue();
+        opv.set("a", "1");
+        long start = System.currentTimeMillis();
+        int total = 200;
+        FileReader reader = new FileReader("d:/dCacheKeys.txt");
+        BufferedReader bufferedReader = new BufferedReader(reader);
+        for (int i = 0; i < total; i++) {
+            String key = bufferedReader.readLine();
+            opv.get(key);
+        }
+        long end = System.currentTimeMillis();
+        bufferedReader.close();
+        reader.close();
+        log.info("单线程获取{}条数据,单线程耗时:{}毫秒", total, end - start);
+        new CountDownLatch(1).await();
+    }
+
+    /**
+     * 多线程从文件读取key
+     */
+    @Test
+    public void mtGetKeysFromFileTests() throws Exception {
+        DCache<String> cache = dCacheFactory.getCache("order", 1, TimeUnit.DAYS);
+        COpsForValue<String> opv = cache.opsForValue();
+        opv.set("a", "1");
+        long start = System.currentTimeMillis();
+        int total = 2000;
+        int threadNum = 5;
+        int threadDataNum = total / threadNum;
+        CountDownLatch latch = new CountDownLatch(threadNum);
+        FileReader reader = new FileReader("d:/dCacheKeys.txt");
+        BufferedReader bufferedReader = new BufferedReader(reader);
+        List<String[]> thData = new LinkedList<>();
+        for (int i = 0; i < threadNum; i++) {
+            String[] data = new String[threadDataNum];
+            for (int h = 0; h < threadDataNum; h++) {
+                data[h] = bufferedReader.readLine();
+            }
+            thData.add(data);
+        }
+        for (int i = 0; i < threadNum; i++) {
+            int finalI = i;
+            new Thread(() -> {
+                String[] data = thData.get(finalI);
+                for (int h = 0; h < threadDataNum; h++) {
+                    opv.get(data[h]);
+                }
+                latch.countDown();
+            }).start();
+        }
+        latch.await();
+        long end = System.currentTimeMillis();
+        bufferedReader.close();
+        reader.close();
+        log.info("多线程获取{}条数据,单线程耗时:{}毫秒", total, end - start);
     }
 }
