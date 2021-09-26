@@ -18,6 +18,8 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class COpsForHash {
     private static final Logger log = LoggerFactory.getLogger(COpsForHash.class);
@@ -71,6 +73,14 @@ public class COpsForHash {
      */
     private RLock getLoadFromRedisLock(String key, String hashKey) {
         return this.redissonClient.getLock(DCacheConstant.Load_From_Redis_Lock_Prefix + this.name + ":"
+                + key + hashKey);
+    }
+
+    /**
+     * 获取从redis加载key的锁
+     */
+    private RLock getLoadFromCallLock(String key, String hashKey) {
+        return this.redissonClient.getLock(DCacheConstant.Load_From_Call_Lock_Prefix + this.name + ":"
                 + key + hashKey);
     }
 
@@ -153,9 +163,188 @@ public class COpsForHash {
     }
 
     /**
+     * 获取
+     */
+    @SuppressWarnings("unchecked")
+    public <HV> HV get(String key, String hashKey, Function<String, HV> call) {
+        HV ret = this.get(key, hashKey);
+        if (ret == null) {
+            RLock lock = this.getLoadFromRedisLock(key, hashKey);
+            try {
+                lock.lock();
+                String redisKey = this.dCache.getRedisKey(key);
+                ret = (HV) this.opsForHash.get(redisKey, hashKey);
+                if (ret == null) {
+                    if (log.isDebugEnabled()) {
+                        log.debug("调用回调查询, key:{}, hashKey:{}", key, hashKey);
+                    }
+                    ret = call.apply(hashKey);
+                    if (ret != null) {
+                        this.put(key, hashKey, ret);
+                    }
+                }
+            } finally {
+                if (lock.isHeldByCurrentThread()) {
+                    lock.unlock();
+                }
+            }
+        }
+        return ret;
+    }
+
+    /**
+     * 从map里面读取结果
+     *
+     * @param hashKeys 需要读取的key
+     * @param source   需要读取的map
+     * @param ret      读取结果写入对象
+     * @return 不存在值的key
+     */
+    private <HV> List<String> getFromMap(Collection<String> hashKeys, Map<String, HV> source, Map<String, HV> ret) {
+        List<String> ndRdKey = new LinkedList<>();
+        for (String hk : hashKeys) {
+            HV hv = source.get(hk);
+            if (hv != null) {
+                ret.put(hk, hv);
+            } else {
+                ndRdKey.add(hk);
+            }
+        }
+        return ndRdKey;
+    }
+
+    /**
+     * 批量获取
+     */
+    @SuppressWarnings("unchecked")
+    public <HV> Map<String, HV> multiGet(String key, Collection<String> hashKeys) {
+        Assert.notNull(key, "key can not be null");
+        Assert.notEmpty(hashKeys, "hashKeys can not be null");
+        List<String> hashKL = hashKeys.stream().filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        Map<String, HV> hash = this.getHash(key);
+        boolean hashIsEmpty = hash.isEmpty();
+        Map<String, HV> ret = new HashMap<>();
+        log.debug("一级缓存查询, key:{}, hashKeys:{}", key, hashKL);
+        List<String> ndRdKey = this.getFromMap(hashKL, hash, ret);
+        if (ndRdKey.isEmpty()) {
+            return ret;
+        }
+        ndRdKey = ndRdKey.stream().sorted().collect(Collectors.toList());
+        List<RLock> locks = new LinkedList<>();
+        try {
+            for (String hk : ndRdKey) {
+                RLock lock = this.getLoadFromRedisLock(key, hk);
+                lock.lock();
+                locks.add(lock);
+            }
+            if (log.isDebugEnabled()) {
+                log.debug("一级缓存重查询, key:{}, hashKeys:{}", key, ndRdKey);
+            }
+            ndRdKey = this.getFromMap(ndRdKey, hash, ret);
+            if (!ndRdKey.isEmpty()) {
+                if (log.isDebugEnabled()) {
+                    log.debug("二级缓存查询, key:{}, hashKeys:{}", key, ndRdKey);
+                }
+                List<HV> values = (List<HV>) this.opsForHash.multiGet(this.dCache.getRedisKey(key), ndRdKey);
+                for (int i = 0; i < ndRdKey.size(); i++) {
+                    String hk = ndRdKey.get(i);
+                    HV hv = values.get(i);
+                    if (hv != null) {
+                        ret.put(hk, hv);
+                        hash.put(hk, hv);
+                    }
+                }
+                //定时删除一级缓存
+                Long expire = this.redisTemplate.getExpire(this.dCache.getRedisKey(key),
+                        TimeUnit.MILLISECONDS);
+                if (expire != null && expire > 0 && hashIsEmpty) {
+                    if (log.isDebugEnabled()) {
+                        log.debug("二级缓存数据存在过期时间, 需要定时删除一级缓存, key:{}", key);
+                    }
+                    this.scheduleDeleteKey(key, expire);
+                }
+            }
+        } finally {
+            locks.forEach(lock -> {
+                if (lock.isHeldByCurrentThread()) {
+                    lock.unlock();
+                }
+            });
+        }
+        return ret;
+    }
+
+    /**
+     * 批量获取
+     */
+    public <HV> Map<String, HV> multiGet(String key, String... hashKeys) {
+        return this.multiGet(key, Arrays.asList(hashKeys));
+    }
+
+    /**
+     * 批量获取
+     */
+    @SuppressWarnings("unchecked")
+    public <HV> Map<String, HV> multiGet(String key, Collection<String> hashKeys,
+                                         Function<List<String>, Map<String, HV>> call) {
+        Map<String, HV> ret = this.multiGet(key, hashKeys);
+        List<String> callKeys = new LinkedList<>();
+        for (String hashKey : hashKeys) {
+            if (!ret.containsKey(hashKey)) {
+                callKeys.add(hashKey);
+            }
+        }
+        if (callKeys.isEmpty()) {
+            return ret;
+        }
+        callKeys = callKeys.stream().sorted().collect(Collectors.toList());
+        List<RLock> locks = new LinkedList<>();
+        try {
+            for (String hk : callKeys) {
+                RLock lock = this.getLoadFromRedisLock(key, hk);
+                lock.lock();
+                locks.add(lock);
+            }
+            if (log.isDebugEnabled()) {
+                log.debug("二级缓存重查询, key:{}, hashKeys:{}", key, callKeys);
+            }
+            List<HV> hvs = (List<HV>) this.opsForHash.multiGet(this.dCache.getRedisKey(key), callKeys);
+            List<String> needCks = new LinkedList<>();
+            Map<String, Object> hash = this.getHash(key);
+            for (int i = 0; i < callKeys.size(); i++) {
+                String hk = callKeys.get(i);
+                HV hv = hvs.get(i);
+                if (hv != null) {
+                    hash.put(hk, hv);
+                    ret.put(hk, hv);
+                } else {
+                    needCks.add(hk);
+                }
+            }
+            if (!needCks.isEmpty()) {
+                if (log.isDebugEnabled()) {
+                    log.debug("调用回调查询, key:{}, hashKeys:{}", key, needCks);
+                }
+                Map<String, HV> clRet = call.apply(needCks);
+                if (clRet != null && !clRet.isEmpty()) {
+                    ret.putAll(clRet);
+                    this.putAll(key, clRet);
+                }
+            }
+        } finally {
+            locks.forEach(lock -> {
+                if (lock.isHeldByCurrentThread()) {
+                    lock.unlock();
+                }
+            });
+        }
+        return ret;
+    }
+
+    /**
      * 设置
      */
-    public <HV> void set(String key, String hashKey, HV value) {
+    public <HV> void put(String key, String hashKey, HV value) {
         Assert.notNull(key, "key can not be null");
         Assert.notNull(hashKey, "hashKey can not be null");
         Assert.notNull(value, "value can not be null");
@@ -163,8 +352,22 @@ public class COpsForHash {
         hash.put(hashKey, value);
         String redisKey = this.dCache.getRedisKey(key);
         this.opsForHash.put(redisKey, hashKey, value);
-        this.redisTemplate.expire(redisKey, this.timeoutMs + new Random().nextInt(1000),
-                TimeUnit.MILLISECONDS);
+        if (this.timeoutMs > 0) {
+            this.redisTemplate.expire(redisKey, this.timeoutMs + new Random().nextInt(1000),
+                    TimeUnit.MILLISECONDS);
+        }
+    }
+
+    public <HV> void putAll(String key, Map<String, HV> hkvs) {
+        Assert.notEmpty(hkvs, "hkvs can not be empty");
+        Map<String, Object> hash = this.getHash(key);
+        hash.putAll(hkvs);
+        String redisKey = this.dCache.getRedisKey(key);
+        this.opsForHash.putAll(redisKey, hash);
+        if (this.timeoutMs > 0) {
+            this.redisTemplate.expire(redisKey, this.timeoutMs + new Random().nextInt(1000),
+                    TimeUnit.MILLISECONDS);
+        }
     }
 
     /**

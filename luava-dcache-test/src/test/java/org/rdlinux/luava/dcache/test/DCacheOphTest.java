@@ -92,8 +92,8 @@ public class DCacheOphTest {
     @Test
     public void getCallTest() throws InterruptedException {
         DCache cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
-        COpsForValue opv = cache.opsForValue();
-        int tn = 20;
+        COpsForHash oph = cache.opsForHash();
+        int tn = 2;
         CountDownLatch latch = new CountDownLatch(tn);
         for (int i = 0; i < tn; i++) {
             new Thread(() -> {
@@ -103,11 +103,13 @@ public class DCacheOphTest {
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
-                String zhangsan = opv.get("zhangsan", key -> {
-                    log.info("执行回调获取" + key);
-                    return "李四";
+                Map<String, String> cRet = oph.multiGet("woman", Arrays.asList("zhangsan", "lisi"), keys -> {
+                    log.info("执行回调获取:{}", keys);
+                    Map<String, String> ret = new HashMap<>();
+                    ret.put("lisi", "李四");
+                    return ret;
                 });
-                log.info("缓存结果:{}", zhangsan);
+                log.info("缓存结果:{}", cRet);
             }).start();
         }
         new CountDownLatch(1).await();
@@ -148,7 +150,7 @@ public class DCacheOphTest {
         int total = 100;
         for (int i = 0; i < total; i++) {
             String key = UUID.randomUUID().toString().replaceAll("-", "").substring(8, 24);
-            oph.set("woman", key, key);
+            oph.put("woman", key, key);
         }
         long end = System.currentTimeMillis();
         log.info("设置{}条数据,单线程耗时:{}毫秒", total, end - start);
@@ -170,7 +172,7 @@ public class DCacheOphTest {
             new Thread(() -> {
                 for (int h = 0; h < part; h++) {
                     String key = UUID.randomUUID().toString().replaceAll("-", "").substring(8, 24);
-                    oph.set("woman", key, key);
+                    oph.put("woman", key, key);
                 }
                 latch.countDown();
             }).start();
