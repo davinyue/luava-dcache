@@ -34,8 +34,7 @@ public class NormalDCache implements DCache {
     private String redisKeyPrefix;
     private COpsForValue opsForValue;
     private COpsForHash opsForHash;
-    private ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1,
-            new ThreadPoolExecutor.DiscardOldestPolicy());
+    private ScheduledThreadPoolExecutor executor;
 
     protected NormalDCache(String name, long timeout, TimeUnit unit, RedisTemplate<String, Object> redisTemplate,
                            RedissonClient redissonClient) {
@@ -45,14 +44,11 @@ public class NormalDCache implements DCache {
         this.redisTemplate = redisTemplate;
         this.redissonClient = redissonClient;
         this.redisKeyPrefix = DCacheConstant.Redis_Cache_Prefix + name + ":";
+        this.executor = new ScheduledThreadPoolExecutor(1, new NamedThreadFactory("dcache-executor"),
+                new ThreadPoolExecutor.DiscardOldestPolicy());
         this.initCaffeineCache();
         this.initTopic();
         this.initOps();
-
-    }
-
-    public ScheduledThreadPoolExecutor getExecutor() {
-        return this.executor;
     }
 
     private void initOps() {

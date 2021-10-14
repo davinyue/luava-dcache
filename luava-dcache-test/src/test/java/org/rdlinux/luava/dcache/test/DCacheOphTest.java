@@ -91,7 +91,7 @@ public class DCacheOphTest {
 
     @Test
     public void getCallTest() throws InterruptedException {
-        DCache cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
+        DCache cache = dCacheFactory.getCache("user", 1, TimeUnit.MINUTES);
         COpsForHash oph = cache.opsForHash();
         int tn = 2;
         CountDownLatch latch = new CountDownLatch(tn);
