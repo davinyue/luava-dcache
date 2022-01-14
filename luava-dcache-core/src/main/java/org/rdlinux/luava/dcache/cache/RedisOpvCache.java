@@ -10,12 +10,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-public class RedisCacheOpv implements CacheOpv {
+public class RedisOpvCache implements OpvCache {
     GenericToStringSerializer<Object> keySerializer = new GenericToStringSerializer<>(Object.class);
     private RedisTemplate<Object, Object> redisTemplate;
     private String prefix;
 
-    public RedisCacheOpv(String prefix, RedisTemplate<Object, Object> redisTemplate) {
+    public RedisOpvCache(String prefix, RedisTemplate<Object, Object> redisTemplate) {
         this.prefix = prefix;
         this.redisTemplate = redisTemplate;
     }

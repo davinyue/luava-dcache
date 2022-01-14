@@ -1,14 +1,14 @@
 package org.rdlinux.luava.dcache;
 
-import org.rdlinux.luava.dcache.cache.CafeCacheOpv;
-import org.rdlinux.luava.dcache.cache.RedisCacheOpv;
+import org.rdlinux.luava.dcache.cache.CafeOpvCache;
+import org.rdlinux.luava.dcache.cache.RedisOpvCache;
 import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.core.RedisTemplate;
 
 import java.util.concurrent.ConcurrentHashMap;
 
 public class CafeRedisCacheFactory {
-    private final ConcurrentHashMap<String, DCacheOpv> dCacheOpvMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, OpvDCache> dCacheOpvMap = new ConcurrentHashMap<>();
     private RedissonClient redissonClient;
     private RedisTemplate<Object, Object> redisTemplate;
     private String redisPrefix;
@@ -23,20 +23,20 @@ public class CafeRedisCacheFactory {
     /**
      * 获取弱一致性双缓存
      */
-    public DCacheOpv getWeakConsistencyDCache(String name, long timeout) {
-        DCacheOpv dCache = this.dCacheOpvMap.get(name);
+    public OpvDCache getWeakConsistencyOpvDCache(String name, long timeout) {
+        OpvDCache dCache = this.dCacheOpvMap.get(name);
         if (dCache == null) {
             synchronized (this) {
                 dCache = this.dCacheOpvMap.get(name);
                 if (dCache == null) {
-                    CafeCacheOpv cafeCacheOpv = new CafeCacheOpv(timeout);
-                    RedisCacheOpv redisCacheOpv;
+                    CafeOpvCache cafeCacheOpv = new CafeOpvCache(timeout);
+                    RedisOpvCache redisCacheOpv;
                     if (this.redisPrefix != null && !this.redisPrefix.isEmpty()) {
-                        redisCacheOpv = new RedisCacheOpv(this.redisPrefix + ":" + name, this.redisTemplate);
+                        redisCacheOpv = new RedisOpvCache(this.redisPrefix + ":" + name, this.redisTemplate);
                     } else {
-                        redisCacheOpv = new RedisCacheOpv(name, this.redisTemplate);
+                        redisCacheOpv = new RedisOpvCache(name, this.redisTemplate);
                     }
-                    dCache = new WeakConsistencyDCacheOpv(name, timeout, this.redissonClient, cafeCacheOpv,
+                    dCache = new WeakConsistencyOpvDCache(name, timeout, this.redissonClient, cafeCacheOpv,
                             redisCacheOpv);
                     this.dCacheOpvMap.put(name, dCache);
                 }

@@ -1,13 +1,10 @@
 package org.rdlinux.luava.dcache;
 
-import org.rdlinux.luava.dcache.cache.CacheOpv;
 import org.rdlinux.luava.dcache.cache.CacheValue;
-import org.rdlinux.luava.dcache.msg.DeleteKeyMsg;
+import org.rdlinux.luava.dcache.cache.OpvCache;
 import org.rdlinux.luava.dcache.utils.Assert;
 import org.redisson.api.RLock;
-import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
-import org.redisson.codec.JsonJacksonCodec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,73 +12,31 @@ import java.util.*;
 import java.util.function.Function;
 
 /**
- * 弱一致缓存
+ * 单缓存缓存
  */
-public class WeakConsistencyDCacheOpv implements DCacheOpv {
-    private static final Logger log = LoggerFactory.getLogger(WeakConsistencyDCacheOpv.class);
-    /**
-     * 一级缓存
-     */
-    private CacheOpv fCacheOpv;
-    /**
-     * 二级缓存
-     */
-    private CacheOpv sCacheOpv;
-    private RedissonClient redisson;
+public class OpvSingleCache implements OpvDCache {
+    private static final Logger log = LoggerFactory.getLogger(OpvSingleCache.class);
+    private OpvCache opvCache;
+    private RedissonClient redissonClient;
     private String cacheName;
     private long timeout;
-    private RTopic topic;
 
-    public WeakConsistencyDCacheOpv(String cacheName, long timeout, RedissonClient redisson, CacheOpv fCacheOpv,
-                                    CacheOpv sCacheOpv) {
-        this.fCacheOpv = fCacheOpv;
-        this.sCacheOpv = sCacheOpv;
-        this.redisson = redisson;
+    public OpvSingleCache(String cacheName, long timeout, RedissonClient redissonClient, OpvCache opvCache) {
+        this.opvCache = opvCache;
+        this.redissonClient = redissonClient;
         this.cacheName = cacheName;
         this.timeout = timeout;
-        this.initTopic();
     }
 
-    private void initTopic() {
-        this.topic = this.redisson.getTopic(DCacheConstant.Redis_Topic_Prefix + "dk:" + this.cacheName,
-                new JsonJacksonCodec());
-        this.topic.addListener(DeleteKeyMsg.class, (channel, msg) -> {
-            try {
-                if (log.isDebugEnabled()) {
-                    log.info("同步删除一级缓存keys:{}", msg.getKey());
-                }
-                this.fCacheOpv.delete(msg.getKey());
-            } catch (Exception ignore) {
-            }
-        });
-    }
 
-    private String getLockKey(Object key) {
+    protected String getLockKey(Object key) {
         return DCacheConstant.Redis_Lock_Prefix + this.cacheName + ":" + key;
     }
 
     @Override
     public <Key, Value> Value get(Key key) {
         Assert.notNull(key, "key can not be null");
-        CacheValue<Value> cacheValue = this.fCacheOpv.get(key);
-        if (cacheValue == null) {
-            RLock lock = this.redisson.getLock(this.getLockKey(key));
-            try {
-                lock.lock();
-                cacheValue = this.fCacheOpv.get(key);
-                if (cacheValue == null) {
-                    log.debug("从二级缓存获取:{}", key);
-                    cacheValue = this.sCacheOpv.get(key);
-                    if (cacheValue != null) {
-                        this.fCacheOpv.set(key, cacheValue);
-                    }
-                }
-            } finally {
-                if (lock.isHeldByCurrentThread()) {
-                    lock.unlock();
-                }
-            }
-        }
+        CacheValue<Value> cacheValue = this.opvCache.get(key);
         if (cacheValue != null) {
             return cacheValue.getValue();
         }
@@ -92,7 +47,7 @@ public class WeakConsistencyDCacheOpv implements DCacheOpv {
     public <Key, Value> Value get(Key key, Function<Key, Value> call) {
         Value value = this.get(key);
         if (value == null) {
-            RLock lock = this.redisson.getLock(this.getLockKey(key));
+            RLock lock = this.redissonClient.getLock(this.getLockKey(key));
             try {
                 lock.lock();
                 value = this.get(key);
@@ -134,7 +89,7 @@ public class WeakConsistencyDCacheOpv implements DCacheOpv {
             List<RLock> locks = new LinkedList<>();
             try {
                 noKeys.stream().sorted().forEach(noKey -> {
-                    RLock lock = this.redisson.getLock(this.getLockKey(noKey));
+                    RLock lock = this.redissonClient.getLock(this.getLockKey(noKey));
                     lock.lock();
                     locks.add(lock);
                 });
@@ -175,8 +130,7 @@ public class WeakConsistencyDCacheOpv implements DCacheOpv {
         Assert.notNull(key, "key can not be null");
         Assert.notNull(value, "value can not be null");
         CacheValue<Value> cacheValue = new CacheValue<>(value, this.timeout);
-        this.fCacheOpv.set(key, cacheValue);
-        this.sCacheOpv.set(key, cacheValue);
+        this.opvCache.set(key, cacheValue);
     }
 
     @Override
@@ -188,10 +142,7 @@ public class WeakConsistencyDCacheOpv implements DCacheOpv {
     @Override
     public <Key> void delete(Key key) {
         Assert.notNull(key, "key can not be null");
-        this.fCacheOpv.delete(key);
-        this.sCacheOpv.delete(key);
-        //推送删除key事件
-        this.topic.publish(new DeleteKeyMsg<>(key));
+        this.opvCache.delete(key);
     }
 
     @Override

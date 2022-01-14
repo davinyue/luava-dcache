@@ -3,7 +3,7 @@ package org.rdlinux.luava.dcache.cache;
 import java.util.Collection;
 import java.util.Map;
 
-public interface CacheOpv {
+public interface OpvCache {
     <Key, Value> CacheValue<Value> get(Key key);
 
     <Key, Value> Map<Key, CacheValue<Value>> multiGet(Collection<Key> keys);
