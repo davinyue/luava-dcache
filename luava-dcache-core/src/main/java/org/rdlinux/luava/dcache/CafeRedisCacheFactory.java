@@ -8,7 +8,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class CafeRedisCacheFactory {
-    private final ConcurrentHashMap<String, DCache> dCacheMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, DCacheOpv> dCacheOpvMap = new ConcurrentHashMap<>();
     private RedissonClient redissonClient;
     private RedisTemplate<Object, Object> redisTemplate;
     private String redisPrefix;
@@ -23,11 +23,11 @@ public class CafeRedisCacheFactory {
     /**
      * 获取弱一致性双缓存
      */
-    public DCache getWeakConsistencyDCache(String name, long timeout) {
-        DCache dCache = this.dCacheMap.get(name);
+    public DCacheOpv getWeakConsistencyDCache(String name, long timeout) {
+        DCacheOpv dCache = this.dCacheOpvMap.get(name);
         if (dCache == null) {
             synchronized (this) {
-                dCache = this.dCacheMap.get(name);
+                dCache = this.dCacheOpvMap.get(name);
                 if (dCache == null) {
                     CafeCacheOpv cafeCacheOpv = new CafeCacheOpv(timeout);
                     RedisCacheOpv redisCacheOpv;
@@ -36,8 +36,9 @@ public class CafeRedisCacheFactory {
                     } else {
                         redisCacheOpv = new RedisCacheOpv(name, this.redisTemplate);
                     }
-                    dCache = new WeakConsistencyDCache(name, timeout, this.redissonClient, cafeCacheOpv, redisCacheOpv);
-                    this.dCacheMap.put(name, dCache);
+                    dCache = new WeakConsistencyDCacheOpv(name, timeout, this.redissonClient, cafeCacheOpv,
+                            redisCacheOpv);
+                    this.dCacheOpvMap.put(name, dCache);
                 }
             }
         }

@@ -17,8 +17,8 @@ import java.util.function.Function;
 /**
  * 弱一致缓存
  */
-public class WeakConsistencyDCache implements DCache {
-    private static final Logger log = LoggerFactory.getLogger(WeakConsistencyDCache.class);
+public class WeakConsistencyDCacheOpv implements DCacheOpv {
+    private static final Logger log = LoggerFactory.getLogger(WeakConsistencyDCacheOpv.class);
     /**
      * 一级缓存
      */
@@ -32,8 +32,8 @@ public class WeakConsistencyDCache implements DCache {
     private long timeout;
     private RTopic topic;
 
-    public WeakConsistencyDCache(String cacheName, long timeout, RedissonClient redisson, CacheOpv fCacheOpv,
-                                 CacheOpv sCacheOpv) {
+    public WeakConsistencyDCacheOpv(String cacheName, long timeout, RedissonClient redisson, CacheOpv fCacheOpv,
+                                    CacheOpv sCacheOpv) {
         this.fCacheOpv = fCacheOpv;
         this.sCacheOpv = sCacheOpv;
         this.redisson = redisson;

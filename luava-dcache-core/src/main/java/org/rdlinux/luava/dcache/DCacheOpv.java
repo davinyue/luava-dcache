@@ -4,7 +4,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.function.Function;
 
-public interface DCache {
+public interface DCacheOpv {
     <Key, Value> Value get(Key key);
 
     <Key, Value> Value get(Key key, Function<Key, Value> call);
