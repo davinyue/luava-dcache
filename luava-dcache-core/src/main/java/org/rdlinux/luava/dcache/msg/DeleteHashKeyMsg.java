@@ -1,4 +1,4 @@
-package org.rdlinux.luava.dcache.core.dcache.topic;
+package org.rdlinux.luava.dcache.msg;
 
 import java.io.Serializable;
 import java.util.Set;

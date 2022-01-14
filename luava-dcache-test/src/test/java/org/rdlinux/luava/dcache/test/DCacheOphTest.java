@@ -9,11 +9,11 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.LoggerContext;
 import org.junit.Test;
-import org.rdlinux.luava.dcache.core.dcache.DCache;
-import org.rdlinux.luava.dcache.core.dcache.DCacheFactory;
-import org.rdlinux.luava.dcache.core.dcache.ops.COpsForHash;
-import org.rdlinux.luava.dcache.core.dcache.ops.COpsForValue;
+import org.rdlinux.luava.dcache.CafeRedisCacheFactory;
+import org.rdlinux.luava.dcache.DCache;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
@@ -25,18 +25,34 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
-import java.io.*;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.time.Duration;
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 @Slf4j
 public class DCacheOphTest {
-    private static RedisTemplate<String, Object> redisTemplate;
+    private static final String redisPrefix = "test";
+    private static RedisTemplate<Object, Object> redisTemplate;
     private static RedissonClient redissonClient;
-    private static DCacheFactory dCacheFactory;
+    private static CafeRedisCacheFactory dCacheFactory;
+
+    static {
+        LoggerContext logContext = (LoggerContext) LogManager.getContext(false);
+        URL resource = DCacheOphTest.class.getClassLoader().getResource("log4j2-test.xml");
+        try {
+            assert resource != null;
+            logContext.setConfigLocation(resource.toURI());
+        } catch (URISyntaxException e) {
+            e.printStackTrace();
+        }
+        logContext.reconfigure();
+    }
 
     static {
         GenericObjectPoolConfig<RedisConnection> pool = new GenericObjectPoolConfig<>();
@@ -49,9 +65,9 @@ public class DCacheOphTest {
 
         RedisStandaloneConfiguration configuration = new RedisStandaloneConfiguration();
         configuration.setDatabase(0);
-        configuration.setHostName("192.168.1.129");
+        configuration.setHostName("192.168.163.3");
         configuration.setPort(6379);
-        configuration.setPassword("123456");
+        //configuration.setPassword("123456");
 
         LettucePoolingClientConfiguration ltPcf = LettucePoolingClientConfiguration.builder().poolConfig(pool)
                 .commandTimeout(Duration.ofSeconds(3)).build();
@@ -80,246 +96,134 @@ public class DCacheOphTest {
 
     static {
         Config config = new Config();
-        config.useSingleServer().setAddress("redis://192.168.1.129:6379").setPassword("123456").setDatabase(0)
+        config.useSingleServer().setAddress("redis://192.168.163.3:6379").setDatabase(0)
                 .setConnectionMinimumIdleSize(3).setConnectionPoolSize(5);
         redissonClient = Redisson.create(config);
     }
 
     static {
-        dCacheFactory = new DCacheFactory(redisTemplate, redissonClient);
+        dCacheFactory = new CafeRedisCacheFactory(redissonClient, redisTemplate, redisPrefix);
     }
 
     @Test
-    public void getCallTest() throws InterruptedException {
-        DCache cache = dCacheFactory.getCache("user", 1, TimeUnit.MINUTES);
-        COpsForHash oph = cache.opsForHash();
-        int tn = 2;
-        CountDownLatch latch = new CountDownLatch(tn);
-        for (int i = 0; i < tn; i++) {
-            new Thread(() -> {
-                latch.countDown();
-                try {
-                    latch.await();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                Map<String, String> cRet = oph.multiGet("woman", Arrays.asList("zhangsan", "lisi"), keys -> {
-                    log.info("执行回调获取:{}", keys);
-                    Map<String, String> ret = new HashMap<>();
-                    ret.put("lisi", "李四");
-                    return ret;
-                });
-                log.info("缓存结果:{}", cRet);
-            }).start();
-        }
-        new CountDownLatch(1).await();
+    public void getTest() throws Exception {
+        String cacheName = "users";
+        String redisKey = redisPrefix + ":" + cacheName + ":";
+        redisTemplate.opsForValue().set(redisKey + "user", "张三", 1, TimeUnit.HOURS);
+        redisTemplate.opsForValue().set(redisKey + "2", "222", 1, TimeUnit.HOURS);
+        DCache dCache = dCacheFactory.getWeakConsistencyDCache(cacheName, 5 * 1000);
+        String user = dCache.get("user");
+        log.info("获取缓存user:{}", user);
+        String v2 = dCache.get(2);
+        log.info("获取缓存2:{}", v2);
+        user = dCache.get("user");
+        log.info("二次获取缓存user:{}", user);
+        TimeUnit.SECONDS.sleep(10);
+        user = dCache.get("user");
+        log.info("三次次获取缓存user:{}", user);
     }
 
     @Test
-    public void multiGetCallTest() throws InterruptedException {
-        DCache cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
-        COpsForValue opv = cache.opsForValue();
-        int tn = 20;
-        CountDownLatch latch = new CountDownLatch(tn);
-        for (int i = 0; i < tn; i++) {
-            new Thread(() -> {
-                latch.countDown();
-                try {
-                    latch.await();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                Map<String, String> ret = opv.multiGet(Arrays.asList("a", "b", "c"), keys -> {
-                    log.info("执行回调获取" + keys.toString());
-                    return keys.stream().collect(Collectors.toMap(e -> e, e -> "1"));
-                });
-                log.info("缓存结果:{}", ret.toString());
-            }).start();
-        }
-        new CountDownLatch(1).await();
+    public void getCallTest() throws Exception {
+        String cacheName = "users";
+        DCache dCache = dCacheFactory.getWeakConsistencyDCache(cacheName, 5 * 1000);
+        int age = dCache.get("age", key -> 2);
+        log.info("年龄:{}", age);
     }
 
-    /**
-     * 单线程设置测试
-     */
     @Test
-    public void singleThreadSetTest() {
-        DCache cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
-        COpsForHash oph = cache.opsForHash();
-        long start = System.currentTimeMillis();
-        int total = 100;
-        for (int i = 0; i < total; i++) {
-            String key = UUID.randomUUID().toString().replaceAll("-", "").substring(8, 24);
-            oph.put("woman", key, key);
-        }
-        long end = System.currentTimeMillis();
-        log.info("设置{}条数据,单线程耗时:{}毫秒", total, end - start);
+    public void multiGetTest() throws Exception {
+        String cacheName = "users";
+        DCache dCache = dCacheFactory.getWeakConsistencyDCache(cacheName, 5 * 1000);
+        Set<Object> keys = new HashSet<>();
+        keys.add("user");
+        keys.add(2);
+        Map<Object, Object> kvs = dCache.multiGet(keys);
+        log.info("数据:{}", kvs);
     }
 
-    /**
-     * 多线程设置测试
-     */
     @Test
-    public void multiThreadSetTest() throws Exception {
-        DCache cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
-        COpsForHash oph = cache.opsForHash();
-        int total = 1000;
-        int threadN = 5;
-        int part = total / threadN;
-        CountDownLatch latch = new CountDownLatch(threadN);
-        long start = System.currentTimeMillis();
-        for (int i = 0; i < threadN; i++) {
-            new Thread(() -> {
-                for (int h = 0; h < part; h++) {
-                    String key = UUID.randomUUID().toString().replaceAll("-", "").substring(8, 24);
-                    oph.put("woman", key, key);
-                }
-                latch.countDown();
-            }).start();
-        }
-        latch.await();
-        long end = System.currentTimeMillis();
-        log.info("设置{}条数据,多线程耗时:{}毫秒", total, end - start);
-    }
-
-    /**
-     * 单线程设置测试
-     */
-    @Test
-    public void singleThreadGetTest() {
-        DCache cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
-        COpsForHash oph = cache.opsForHash();
-        oph.get("woman", "7b4d49e9b9188511");
-        long start = System.currentTimeMillis();
-        int total = 10000;
-        for (int i = 0; i < total; i++) {
-            oph.get("woman", "7b4d49e9b9188511");
-        }
-        long end = System.currentTimeMillis();
-        log.info("获取{}条数据,单线程耗时:{}毫秒", total, end - start);
-    }
-
-    /**
-     * 多线程设置测试
-     */
-    @Test
-    public void multiThreadGetTest() throws Exception {
-        DCache cache = dCacheFactory.getCache("user", 1, TimeUnit.DAYS);
-        COpsForValue opv = cache.opsForValue();
-        opv.set("a", "1");
-        int total = 10000;
-        int threadN = 5;
-        int part = total / threadN;
-        CountDownLatch latch = new CountDownLatch(threadN);
-        long start = System.currentTimeMillis();
-        for (int i = 0; i < threadN; i++) {
-            new Thread(() -> {
-                for (int h = 0; h < part; h++) {
-                    opv.get("a");
-                }
-                latch.countDown();
-            }).start();
-        }
-        latch.await();
-        long end = System.currentTimeMillis();
-        log.info("获取{}条数据,多线程耗时:{}毫秒", total, end - start);
-    }
-
-    /**
-     * 生成一万个key到缓存, 并将key存储到文件
-     */
-    @Test
-    public void generateKeysTests() throws Exception {
-        DCache cache = dCacheFactory.getCache("order", 1, TimeUnit.DAYS);
-        COpsForValue opv = cache.opsForValue();
-        long start = System.currentTimeMillis();
-        int total = 10000;
-        File file = new File("d:/dCacheKeys.txt");
-        if (!file.exists()) {
-            file.createNewFile();
-        }
-        FileWriter writer = new FileWriter("d:/dCacheKeys.txt");
-        BufferedWriter bufferedWriter = new BufferedWriter(writer);
-        for (int i = 0; i < total; i++) {
-            String key = UUID.randomUUID().toString().replaceAll("-", "").substring(8, 24);
-            opv.set(key, key);
-            bufferedWriter.write(key + "\r\n");
-        }
-        long end = System.currentTimeMillis();
-        bufferedWriter.close();
-        writer.close();
-        log.info("设置{}条数据,单线程耗时:{}毫秒", total, end - start);
-    }
-
-    /**
-     * 单线程从文件读取key
-     */
-    @Test
-    public void getKeysFromFileTests() throws Exception {
-        DCache cache = dCacheFactory.getCache("order", 1, TimeUnit.DAYS);
-        COpsForValue opv = cache.opsForValue();
-        opv.set("a", "1");
-        long start = System.currentTimeMillis();
-        int total = 200;
-        FileReader reader = new FileReader("d:/dCacheKeys.txt");
-        BufferedReader bufferedReader = new BufferedReader(reader);
-        for (int i = 0; i < total; i++) {
-            String key = bufferedReader.readLine();
-            opv.get(key);
-        }
-        long end = System.currentTimeMillis();
-        bufferedReader.close();
-        reader.close();
-        log.info("单线程获取{}条数据,单线程耗时:{}毫秒", total, end - start);
-        new CountDownLatch(1).await();
-    }
-
-    /**
-     * 多线程从文件读取key
-     */
-    @Test
-    public void mtGetKeysFromFileTests() throws Exception {
-        DCache cache = dCacheFactory.getCache("order", 1, TimeUnit.DAYS);
-        COpsForValue opv = cache.opsForValue();
-        opv.set("a", "1");
-        long start = System.currentTimeMillis();
-        int total = 2000;
-        int threadNum = 5;
-        int threadDataNum = total / threadNum;
-        CountDownLatch latch = new CountDownLatch(threadNum);
-        FileReader reader = new FileReader("d:/dCacheKeys.txt");
-        BufferedReader bufferedReader = new BufferedReader(reader);
-        List<String[]> thData = new LinkedList<>();
-        for (int i = 0; i < threadNum; i++) {
-            String[] data = new String[threadDataNum];
-            for (int h = 0; h < threadDataNum; h++) {
-                data[h] = bufferedReader.readLine();
-            }
-            thData.add(data);
-        }
-        for (int i = 0; i < threadNum; i++) {
-            int finalI = i;
-            new Thread(() -> {
-                String[] data = thData.get(finalI);
-                for (int h = 0; h < threadDataNum; h++) {
-                    opv.get(data[h]);
-                }
-                latch.countDown();
-            }).start();
-        }
-        latch.await();
-        long end = System.currentTimeMillis();
-        bufferedReader.close();
-        reader.close();
-        log.info("多线程获取{}条数据,单线程耗时:{}毫秒", total, end - start);
+    public void multiGetCallTest() throws Exception {
+        String cacheName = "users";
+        DCache dCache = dCacheFactory.getWeakConsistencyDCache(cacheName, 5 * 1000);
+        Set<String> keys = new HashSet<>();
+        keys.add("李四age");
+        keys.add("张三age");
+        Map<String, Integer> ages = dCache.multiGet(keys, callKeys -> {
+            Map<String, Integer> ret = new HashMap<>();
+            ret.put("李四age", 23);
+            ret.put("张三age", 23);
+            return ret;
+        });
+        log.info("年龄:{}", ages);
+        log.info("二次获取");
+        ages = dCache.multiGet(keys, callKeys -> {
+            Map<String, Integer> ret = new HashMap<>();
+            ret.put("李四age", 23);
+            ret.put("张三age", 23);
+            return ret;
+        });
+        log.info("年龄:{}", ages);
     }
 
     @Test
     public void deleteTest() throws Exception {
-        DCache cache = dCacheFactory.getCache("order", 1, TimeUnit.DAYS);
-        COpsForHash oph = cache.opsForHash();
-        oph.delete("woman", "1", "2");
-        oph.delete("woman", Collections.singleton("1"));
-        new CountDownLatch(1).await();
+        String cacheName = "users";
+        DCache dCache = dCacheFactory.getWeakConsistencyDCache(cacheName, 5 * 1000);
+        dCache.set("lisi", "lisi");
+        dCache.set("2", 2);
+        log.info("lisi:{}", (String) dCache.get("lisi"));
+        log.info("2:{}", (int) dCache.get(2));
+        dCache.delete("lisi");
+        dCache.delete(2);
+        log.info("删除后获取");
+        log.info("lisi:{}", (String) dCache.get("lisi"));
+        log.info("2:{}", (Integer) dCache.get(2));
+        CountDownLatch latch = new CountDownLatch(1);
+        latch.await(10, TimeUnit.SECONDS);
+    }
+
+    @Test
+    public void mThreadGetTest() throws Exception {
+        String cacheName = "users";
+        DCache dCache = dCacheFactory.getWeakConsistencyDCache(cacheName, 5 * 1000);
+        int count = 20;
+        CountDownLatch countDownLatch = new CountDownLatch(count);
+        for (int i = 0; i < count; i++) {
+            new Thread(() -> {
+                try {
+                    countDownLatch.countDown();
+                    countDownLatch.await();
+                    String value = dCache.get("lisi", k -> "sili");
+                    log.info("value:{}", value);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }).start();
+        }
+        new CountDownLatch(1).await(10, TimeUnit.SECONDS);
+    }
+
+    @Test
+    public void mClientDeleteTest() throws Exception {
+        String cacheName = "users";
+        int count = 2;
+        DCache[] dCaches = new DCache[count];
+        dCaches[0] = dCacheFactory.getWeakConsistencyDCache(cacheName, 5 * 1000);
+        dCaches[1] = dCacheFactory.getWeakConsistencyDCache(cacheName, 5 * 1000);
+        CountDownLatch countDownLatch = new CountDownLatch(count);
+        for (int i = 0; i < count; i++) {
+            int h = i;
+            new Thread(() -> {
+                try {
+                    countDownLatch.countDown();
+                    countDownLatch.await();
+                    dCaches[h].delete("list");
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }).start();
+        }
+        new CountDownLatch(1).await(10, TimeUnit.SECONDS);
     }
 }

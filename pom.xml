@@ -6,7 +6,7 @@
     <groupId>org.rdlinux</groupId>
     <artifactId>luava-dcache</artifactId>
     <packaging>pom</packaging>
-    <version>0.0.1.RS</version>
+    <version>0.0.2.RS</version>
     <name>luava-dcache</name>
     <url>https://github.com/davinyue/luava-dcache</url>
     <description>luava-dcache</description>
