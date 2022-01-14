@@ -111,7 +111,7 @@ public class DCacheOphTest {
         String redisKey = redisPrefix + ":" + cacheName + ":";
         redisTemplate.opsForValue().set(redisKey + "user", "张三", 1, TimeUnit.HOURS);
         redisTemplate.opsForValue().set(redisKey + "2", "222", 1, TimeUnit.HOURS);
-        OpvCache dCache = dCacheFactory.getWeakConsistencyOpvDCache(cacheName, 5 * 1000);
+        OpvCache dCache = dCacheFactory.getWeakConsistencyOpvDCache(cacheName, 5, TimeUnit.SECONDS);
         String user = dCache.get("user");
         log.info("获取缓存user:{}", user);
         String v2 = dCache.get(2);
@@ -126,7 +126,7 @@ public class DCacheOphTest {
     @Test
     public void getCallTest() throws Exception {
         String cacheName = "users";
-        OpvCache dCache = dCacheFactory.getWeakConsistencyOpvDCache(cacheName, 5 * 1000);
+        OpvCache dCache = dCacheFactory.getWeakConsistencyOpvDCache(cacheName, 5, TimeUnit.SECONDS);
         int age = dCache.get("age", key -> 2);
         log.info("年龄:{}", age);
         log.info("二次获取");
@@ -137,7 +137,7 @@ public class DCacheOphTest {
     @Test
     public void multiGetTest() throws Exception {
         String cacheName = "users";
-        OpvCache dCache = dCacheFactory.getWeakConsistencyOpvDCache(cacheName, 5 * 1000);
+        OpvCache dCache = dCacheFactory.getWeakConsistencyOpvDCache(cacheName, 5, TimeUnit.SECONDS);
         Set<Object> keys = new HashSet<>();
         keys.add("user");
         keys.add(2);
@@ -148,7 +148,7 @@ public class DCacheOphTest {
     @Test
     public void multiGetCallTest() throws Exception {
         String cacheName = "users";
-        OpvCache dCache = dCacheFactory.getWeakConsistencyOpvDCache(cacheName, 5 * 1000);
+        OpvCache dCache = dCacheFactory.getWeakConsistencyOpvDCache(cacheName, 5, TimeUnit.SECONDS);
         Set<String> keys = new HashSet<>();
         keys.add("李四age");
         keys.add("张三age");
@@ -172,7 +172,7 @@ public class DCacheOphTest {
     @Test
     public void deleteTest() throws Exception {
         String cacheName = "users";
-        OpvCache dCache = dCacheFactory.getWeakConsistencyOpvDCache(cacheName, 5 * 1000);
+        OpvCache dCache = dCacheFactory.getWeakConsistencyOpvDCache(cacheName, 5, TimeUnit.SECONDS);
         dCache.set("lisi", "lisi");
         dCache.set("2", 2);
         log.info("lisi:{}", (String) dCache.get("lisi"));
@@ -189,7 +189,7 @@ public class DCacheOphTest {
     @Test
     public void mThreadGetTest() throws Exception {
         String cacheName = "users";
-        OpvCache dCache = dCacheFactory.getWeakConsistencyOpvDCache(cacheName, 5 * 1000);
+        OpvCache dCache = dCacheFactory.getWeakConsistencyOpvDCache(cacheName, 5, TimeUnit.SECONDS);
         int count = 20;
         CountDownLatch countDownLatch = new CountDownLatch(count);
         for (int i = 0; i < count; i++) {
@@ -212,8 +212,8 @@ public class DCacheOphTest {
         String cacheName = "users";
         int count = 2;
         OpvCache[] dCaches = new OpvCache[count];
-        dCaches[0] = dCacheFactory.getWeakConsistencyOpvDCache(cacheName, 5 * 1000);
-        dCaches[1] = dCacheFactory.getWeakConsistencyOpvDCache(cacheName, 5 * 1000);
+        dCaches[0] = dCacheFactory.getWeakConsistencyOpvDCache(cacheName, 5, TimeUnit.SECONDS);
+        dCaches[1] = dCacheFactory.getWeakConsistencyOpvDCache(cacheName, 5, TimeUnit.SECONDS);
         CountDownLatch countDownLatch = new CountDownLatch(count);
         for (int i = 0; i < count; i++) {
             int h = i;
