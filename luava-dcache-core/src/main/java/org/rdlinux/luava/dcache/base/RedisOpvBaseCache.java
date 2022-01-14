@@ -1,4 +1,4 @@
-package org.rdlinux.luava.dcache.cache;
+package org.rdlinux.luava.dcache.base;
 
 import org.rdlinux.luava.dcache.utils.Assert;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -10,12 +10,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-public class RedisOpvCache implements OpvCache {
+public class RedisOpvBaseCache implements OpvBaseCache {
     GenericToStringSerializer<Object> keySerializer = new GenericToStringSerializer<>(Object.class);
     private RedisTemplate<Object, Object> redisTemplate;
     private String prefix;
 
-    public RedisOpvCache(String prefix, RedisTemplate<Object, Object> redisTemplate) {
+    public RedisOpvBaseCache(String prefix, RedisTemplate<Object, Object> redisTemplate) {
         this.prefix = prefix;
         this.redisTemplate = redisTemplate;
     }

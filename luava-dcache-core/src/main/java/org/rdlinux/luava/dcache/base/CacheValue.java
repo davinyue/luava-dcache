@@ -1,4 +1,4 @@
-package org.rdlinux.luava.dcache.cache;
+package org.rdlinux.luava.dcache.base;
 
 /**
  * 缓存值

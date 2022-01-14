@@ -1,7 +1,7 @@
 package org.rdlinux.luava.dcache;
 
-import org.rdlinux.luava.dcache.cache.CacheValue;
-import org.rdlinux.luava.dcache.cache.OpvCache;
+import org.rdlinux.luava.dcache.base.CacheValue;
+import org.rdlinux.luava.dcache.base.OpvBaseCache;
 import org.rdlinux.luava.dcache.utils.Assert;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
@@ -14,14 +14,14 @@ import java.util.function.Function;
 /**
  * 单缓存缓存
  */
-public class OpvSingleCache implements OpvDCache {
+public class OpvSingleCache implements OpvCache {
     private static final Logger log = LoggerFactory.getLogger(OpvSingleCache.class);
-    private OpvCache opvCache;
+    private OpvBaseCache opvCache;
     private RedissonClient redissonClient;
     private String cacheName;
     private long timeout;
 
-    public OpvSingleCache(String cacheName, long timeout, RedissonClient redissonClient, OpvCache opvCache) {
+    public OpvSingleCache(String cacheName, long timeout, RedissonClient redissonClient, OpvBaseCache opvCache) {
         this.opvCache = opvCache;
         this.redissonClient = redissonClient;
         this.cacheName = cacheName;

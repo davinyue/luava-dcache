@@ -1,7 +1,7 @@
 package org.rdlinux.luava.dcache;
 
-import org.rdlinux.luava.dcache.cache.CacheValue;
-import org.rdlinux.luava.dcache.cache.OpvCache;
+import org.rdlinux.luava.dcache.base.CacheValue;
+import org.rdlinux.luava.dcache.base.OpvBaseCache;
 import org.rdlinux.luava.dcache.msg.DeleteKeyMsg;
 import org.redisson.api.RLock;
 import org.redisson.api.RTopic;
@@ -13,12 +13,12 @@ import org.slf4j.LoggerFactory;
 /**
  * 弱一致缓存
  */
-public class WeakConsistencyOpvDCache extends OpvSingleCache {
-    private static final Logger log = LoggerFactory.getLogger(WeakConsistencyOpvDCache.class);
+public class WeakConsistencyOpvCache extends OpvSingleCache {
+    private static final Logger log = LoggerFactory.getLogger(WeakConsistencyOpvCache.class);
     /**
      * 二级缓存
      */
-    private OpvCache sOpvCache;
+    private OpvBaseCache sOpvCache;
     private RedissonClient redissonClient;
     private String cacheName;
     private long timeout;
@@ -31,8 +31,8 @@ public class WeakConsistencyOpvDCache extends OpvSingleCache {
      * @param fOpvCache      一级缓存
      * @param sOpvCache      二级缓存
      */
-    public WeakConsistencyOpvDCache(String cacheName, long timeout, RedissonClient redissonClient, OpvCache fOpvCache,
-                                    OpvCache sOpvCache) {
+    public WeakConsistencyOpvCache(String cacheName, long timeout, RedissonClient redissonClient, OpvBaseCache fOpvCache,
+                                   OpvBaseCache sOpvCache) {
         super(cacheName, timeout, redissonClient, fOpvCache);
         this.sOpvCache = sOpvCache;
         this.redissonClient = redissonClient;

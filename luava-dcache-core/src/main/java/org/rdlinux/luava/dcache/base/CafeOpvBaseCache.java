@@ -1,4 +1,4 @@
-package org.rdlinux.luava.dcache.cache;
+package org.rdlinux.luava.dcache.base;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -7,13 +7,13 @@ import org.rdlinux.luava.dcache.utils.Assert;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-public class CafeOpvCache implements OpvCache {
+public class CafeOpvBaseCache implements OpvBaseCache {
     private Cache<Object, Object> cache;
 
     /**
      * @param timeout 缓存里面key的过期时间, 单位毫秒
      */
-    public CafeOpvCache(long timeout) {
+    public CafeOpvBaseCache(long timeout) {
         Caffeine<Object, Object> cfCBuilder = Caffeine.newBuilder().softValues().initialCapacity(8);
         if (timeout != -1) {
             cfCBuilder.expireAfterWrite(timeout, TimeUnit.MILLISECONDS);
