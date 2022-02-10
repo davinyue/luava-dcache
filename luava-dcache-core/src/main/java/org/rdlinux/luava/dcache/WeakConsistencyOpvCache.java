@@ -10,6 +10,8 @@ import org.redisson.codec.JsonJacksonCodec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.concurrent.TimeUnit;
+
 /**
  * 弱一致缓存
  */
@@ -42,17 +44,28 @@ public class WeakConsistencyOpvCache extends OpvSingleCache {
     }
 
     private void initTopic() {
-        this.topic = this.redissonClient.getTopic(DCacheConstant.Redis_Topic_Prefix + "dk:" + this.cacheName,
+        this.topic = this.redissonClient.getTopic(this.cacheName + ":" + DCacheConstant.REDIS_DELETE_TOPIC,
                 new JsonJacksonCodec());
-        this.topic.addListener(DeleteKeyMsg.class, (channel, msg) -> {
+        while (true) {
             try {
-                if (log.isDebugEnabled()) {
-                    log.info("同步删除一级缓存keys:{}", msg.getKey());
+                this.topic.addListener(DeleteKeyMsg.class, (channel, msg) -> {
+                    try {
+                        if (log.isDebugEnabled()) {
+                            log.info("同步删除一级缓存keys:{}", msg.getKey());
+                        }
+                        super.delete(msg.getKey());
+                    } catch (Exception ignore) {
+                    }
+                });
+                break;
+            } catch (Exception e) {
+                log.warn("", e);
+                try {
+                    TimeUnit.SECONDS.sleep(5);
+                } catch (InterruptedException ignored) {
                 }
-                super.delete(msg.getKey());
-            } catch (Exception ignore) {
             }
-        });
+        }
     }
 
     @Override

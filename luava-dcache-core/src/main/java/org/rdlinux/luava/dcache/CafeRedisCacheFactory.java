@@ -39,13 +39,13 @@ public class CafeRedisCacheFactory {
                 if (dCache == null) {
                     CafeOpvBaseCache cafeCacheOpv = new CafeOpvBaseCache(timeUnit.toMillis(timeout));
                     RedisOpvBaseCache redisCacheOpv;
+                    String redisCacheName = name;
                     if (this.redisPrefix != null && !this.redisPrefix.isEmpty()) {
-                        redisCacheOpv = new RedisOpvBaseCache(this.redisPrefix + ":" + name, this.redisTemplate);
-                    } else {
-                        redisCacheOpv = new RedisOpvBaseCache(name, this.redisTemplate);
+                        redisCacheName = this.redisPrefix + ":" + name;
                     }
-                    dCache = new WeakConsistencyOpvCache(name, timeUnit.toMillis(timeout), this.redissonClient, cafeCacheOpv,
-                            redisCacheOpv);
+                    redisCacheOpv = new RedisOpvBaseCache(redisCacheName, this.redisTemplate);
+                    dCache = new WeakConsistencyOpvCache(redisCacheName, timeUnit.toMillis(timeout),
+                            this.redissonClient, cafeCacheOpv, redisCacheOpv);
                     this.dCacheOpvMap.put(name, dCache);
                 }
             }

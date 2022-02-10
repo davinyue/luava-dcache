@@ -30,7 +30,7 @@ public class OpvSingleCache implements OpvCache {
 
 
     protected String getLockKey(Object key) {
-        return DCacheConstant.Redis_Lock_Prefix + this.cacheName + ":" + key;
+        return this.cacheName + ":" + DCacheConstant.REDIS_LOCK_PREFIX + key;
     }
 
     @Override
