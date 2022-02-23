@@ -5,7 +5,7 @@
     <parent>
         <artifactId>luava-dcache</artifactId>
         <groupId>org.rdlinux</groupId>
-        <version>0.0.3.RS</version>
+        <version>0.0.4.RS</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <name>luava-dcache-core</name>

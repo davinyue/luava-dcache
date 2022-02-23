@@ -6,16 +6,13 @@ import org.rdlinux.luava.dcache.msg.DeleteKeyMsg;
 import org.redisson.api.RLock;
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
-import org.redisson.codec.JsonJacksonCodec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.concurrent.TimeUnit;
 
 /**
  * 弱一致缓存
  */
-public class WeakConsistencyOpvCache extends OpvSingleCache {
+public class WeakConsistencyOpvCache extends OpvSingleCache implements DOpvCache {
     private static final Logger log = LoggerFactory.getLogger(WeakConsistencyOpvCache.class);
     /**
      * 二级缓存
@@ -23,8 +20,8 @@ public class WeakConsistencyOpvCache extends OpvSingleCache {
     private OpvBaseCache sOpvCache;
     private RedissonClient redissonClient;
     private String cacheName;
-    private long timeout;
     private RTopic topic;
+    private long timeout;
 
     /**
      * @param cacheName      缓存名称
@@ -32,40 +29,16 @@ public class WeakConsistencyOpvCache extends OpvSingleCache {
      * @param redissonClient redissonClient
      * @param fOpvCache      一级缓存
      * @param sOpvCache      二级缓存
+     * @param topic          删除通知主题
      */
-    public WeakConsistencyOpvCache(String cacheName, long timeout, RedissonClient redissonClient, OpvBaseCache fOpvCache,
-                                   OpvBaseCache sOpvCache) {
+    public WeakConsistencyOpvCache(String cacheName, long timeout, RedissonClient redissonClient,
+                                   OpvBaseCache fOpvCache, OpvBaseCache sOpvCache, RTopic topic) {
         super(cacheName, timeout, redissonClient, fOpvCache);
         this.sOpvCache = sOpvCache;
         this.redissonClient = redissonClient;
         this.cacheName = cacheName;
         this.timeout = timeout;
-        this.initTopic();
-    }
-
-    private void initTopic() {
-        this.topic = this.redissonClient.getTopic(this.cacheName + ":" + DCacheConstant.REDIS_DELETE_TOPIC,
-                new JsonJacksonCodec());
-        while (true) {
-            try {
-                this.topic.addListener(DeleteKeyMsg.class, (channel, msg) -> {
-                    try {
-                        if (log.isDebugEnabled()) {
-                            log.info("同步删除一级缓存keys:{}", msg.getKey());
-                        }
-                        super.delete(msg.getKey());
-                    } catch (Exception ignore) {
-                    }
-                });
-                break;
-            } catch (Exception e) {
-                log.warn("", e);
-                try {
-                    TimeUnit.SECONDS.sleep(5);
-                } catch (InterruptedException ignored) {
-                }
-            }
-        }
+        this.topic = topic;
     }
 
     @Override
@@ -105,6 +78,11 @@ public class WeakConsistencyOpvCache extends OpvSingleCache {
         super.delete(key);
         this.sOpvCache.delete(key);
         //推送删除key事件
-        this.topic.publish(new DeleteKeyMsg<>(key));
+        this.topic.publish(new DeleteKeyMsg<>(this.cacheName, key));
+    }
+
+    @Override
+    public <Key> void deleteNotice(Key key) {
+        super.delete(key);
     }
 }
